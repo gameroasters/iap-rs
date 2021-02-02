@@ -2,7 +2,7 @@ use super::{error::{Error::IoError, Result}, PurchaseResponse, UnityPurchaseRece
 use async_recursion::async_recursion;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use warp::hyper::{body, Body, Client, Request};
+use hyper::{body, Body, Client, Request};
 
 //https://developer.apple.com/documentation/appstorereceipts/status
 const APPLE_STATUS_CODE_TEST: i32 = 21007;
@@ -50,7 +50,7 @@ pub struct AppleResponse {
 
 pub async fn validate_apple(
     receipt: &UnityPurchaseReceipt,
-    client: &Client<hyper_tls::HttpsConnector<warp::hyper::client::HttpConnector>>,
+    client: &Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
     apple_urls: &AppleUrls,
     password: Option<&String>,
 ) -> Result<PurchaseResponse> {
@@ -92,7 +92,7 @@ pub async fn validate_apple(
 
 #[async_recursion]
 async fn get_apple_response(
-    client: &Client<hyper_tls::HttpsConnector<warp::hyper::client::HttpConnector>>,
+    client: &Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
     request_body: &str,
     apple_urls: &AppleUrls,
     prod: bool,

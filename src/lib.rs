@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use google::{uri_from_payload, validate_google};
 use hyper_tls::HttpsConnector;
 use serde::{Deserialize, Serialize};
-use warp::hyper::Client;
+use hyper::Client;
 use yup_oauth2::ServiceAccountKey;
 
 const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
@@ -83,7 +83,7 @@ impl UnityPurchaseValidator {
 impl Validator for UnityPurchaseValidator {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse> {
         let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, warp::hyper::Body>(https);
+        let client = Client::builder().build::<_, hyper::Body>(https);
 
         slog::debug!(slog_scope::logger(), "purchase receipt validation";
             "store" => format!("{:?}",receipt.store),
@@ -275,7 +275,7 @@ mod tests {
         let url = &mockito::server_url();
 
         let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, warp::hyper::Body>(https);
+        let client = Client::builder().build::<_, hyper::Body>(https);
 
         assert!(!validate_google(&client, None, url).await.unwrap().valid);
     }
@@ -297,7 +297,7 @@ mod tests {
         let url = &mockito::server_url();
 
         let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, warp::hyper::Body>(https);
+        let client = Client::builder().build::<_, hyper::Body>(https);
 
         assert!(validate_google(&client, None, url).await.unwrap().valid);
     }

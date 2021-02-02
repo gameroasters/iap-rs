@@ -1,7 +1,7 @@
 use super::{error, error::Result, PurchaseResponse};
 use chrono::Utc;
 use serde::{de::Error, Deserialize, Serialize};
-use warp::hyper::{body, Body, Client, Request};
+use hyper::{body, Body, Client, Request};
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -44,7 +44,7 @@ pub struct GooglePlayParametersJson {
 }
 
 pub async fn validate_google(
-    client: &Client<hyper_tls::HttpsConnector<warp::hyper::client::HttpConnector>>,
+    client: &Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
     service_account_key: Option<&ServiceAccountKey>,
     uri: &str,
 ) -> Result<PurchaseResponse> {
