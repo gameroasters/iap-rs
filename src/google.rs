@@ -1,8 +1,7 @@
-use super::PurchaseResponse;
-use anyhow::Result;
+use super::{error, error::Result, PurchaseResponse};
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use warp::hyper::{body, Body, Client, Request};
+use serde::{de::Error, Deserialize, Serialize};
+use hyper::{body, Body, Client, Request};
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -45,7 +44,7 @@ pub struct GooglePlayParametersJson {
 }
 
 pub async fn validate_google(
-    client: &Client<hyper_tls::HttpsConnector<warp::hyper::client::HttpConnector>>,
+    client: &Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
     service_account_key: Option<&ServiceAccountKey>,
     uri: &str,
 ) -> Result<PurchaseResponse> {
@@ -81,9 +80,9 @@ pub async fn validate_google(
     let string = String::from_utf8(buf.to_vec())?.replace("\n", "");
     slog::debug!(slog_scope::logger(), "Google response: {}", &string);
     let response: GoogleResponse = serde_json::from_slice(&buf).map_err(|err| {
-        anyhow::Error::msg(format!(
+        error::Error::SerdeError(serde_json::Error::custom(format!(
             "Failed to deserialize google response. Was the service account key set? Error message: {}", err)
-        )
+        ))
     })?;
 
     let expiry_time = response.expiry_time.parse::<i64>()?;
