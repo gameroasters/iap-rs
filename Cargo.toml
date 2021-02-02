@@ -5,15 +5,16 @@ authors = ["Stephan Dilly <dilly.stephan@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.38"
 async-recursion = "0.3.1"
 async-trait = "0.1.42"
 chrono = "0.4.19"
+hyper = "0.14.2"
 hyper-tls = "0.5.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.61"
 slog = { version = "2.7", features = [ "release_max_level_debug" ] }
 slog-scope = "4.4.0"
+thiserror = "1.0.23"
 tokio = { version = "1.1", default-features = false, features = ["macros"] }
 warp = { version = "0.3.0", default-features = false }
 yup-oauth2 = { git = "https://github.com/lyonbeckers/yup-oauth2.git", rev = "26db4b6", default-features = false, features = ["hyper-tls"] }

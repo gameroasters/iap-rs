@@ -1,8 +1,9 @@
 #[allow(unused_imports)]
+mod error;
 mod apple;
 mod google;
 
-use anyhow::Result;
+use error::Result;
 use apple::{validate_apple, AppleUrls};
 use async_trait::async_trait;
 use google::{uri_from_payload, validate_google};
