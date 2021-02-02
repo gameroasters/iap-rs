@@ -4,16 +4,17 @@ mod apple;
 mod google;
 
 use error::Result;
-use apple::{validate_apple, AppleUrls};
+use apple::{validate_apple_subscription, AppleUrls};
 use async_trait::async_trait;
-use google::{uri_from_payload, validate_google};
-use hyper_tls::HttpsConnector;
+use google::{validate_google_subscription};
 use serde::{Deserialize, Serialize};
-use hyper::Client;
 use yup_oauth2::ServiceAccountKey;
 
 const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
 const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
+
+pub use apple::{AppleResponse, apple_response};
+pub use google::{GoogleResponse, google_response};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum Platform {
@@ -82,8 +83,6 @@ impl UnityPurchaseValidator {
 #[async_trait]
 impl Validator for UnityPurchaseValidator {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse> {
-        let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(https);
 
         slog::debug!(slog_scope::logger(), "purchase receipt validation";
             "store" => format!("{:?}",receipt.store),
@@ -93,15 +92,28 @@ impl Validator for UnityPurchaseValidator {
 
         match receipt.store {
             Platform::AppleAppStore => {
-                validate_apple(receipt, &client, &self.apple_urls, self.secret.as_ref()).await
+                let response = apple_response(receipt, &self.apple_urls, self.secret.as_ref()).await?;
+                if response.status == 0 {
+                    //apple returns latest_receipt_info if it is a renewable subscription
+                    match response.latest_receipt {
+                        Some(_) => validate_apple_subscription(response).await,
+                        None => unimplemented!("validate consumable")
+                    }
+                } else {
+                    Ok(PurchaseResponse{ valid: false })
+                }
             }
             Platform::GooglePlay => {
-                validate_google(
-                    &client,
-                    self.service_account_key.as_ref(),
-                    &uri_from_payload(&receipt.payload).unwrap_or_default(),
-                )
-                .await
+                let google_data = google::GooglePlayData::from(&receipt.payload)?;
+                let response = google_response(self.service_account_key.as_ref(),
+                    &google_data.get_uri()?).await?;
+                //TODO: figure out what the response is on invalid data. Should we check against an error? Is it a status code similar to apple?
+                let sku_type = google_data.get_sku_details()?.sku_type;
+                if sku_type == "subs" {
+                    validate_google_subscription(response).await
+                } else {
+                    unimplemented!("validate consumable")
+                }
             }
         }
     }
@@ -112,7 +124,7 @@ mod tests {
     use super::*;
     use crate::{
         apple::{AppleLatestReceipt, AppleResponse},
-        google::{validate_google, GoogleResponse},
+        google::{validate_google_subscription, GoogleResponse},
     };
     use chrono::{Duration, Utc};
     use mockito::mock;
@@ -133,6 +145,7 @@ mod tests {
     #[serial]
     async fn test_sandbox_response() {
         let apple_response = AppleResponse {
+            latest_receipt: Some(String::default()),
             latest_receipt_info: Some(vec![AppleLatestReceipt {
                 expires_date_ms: (Utc::now() + Duration::days(1))
                     .timestamp_millis()
@@ -169,6 +182,7 @@ mod tests {
     #[serial]
     async fn test_invalid_receipt() {
         let apple_response = AppleResponse {
+            latest_receipt: Some(String::default()),
             latest_receipt_info: Some(vec![AppleLatestReceipt {
                 expires_date_ms: Utc::now().timestamp_millis().to_string(),
                 ..AppleLatestReceipt::default()
@@ -216,6 +230,7 @@ mod tests {
         ];
 
         let apple_response = AppleResponse {
+            latest_receipt: Some(String::default()),
             latest_receipt_info: Some(latest_receipt_info),
             ..AppleResponse::default()
         };
@@ -274,10 +289,7 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(https);
-
-        assert!(!validate_google(&client, None, url).await.unwrap().valid);
+        assert!(!validate_google_subscription(google::google_response(None, url).await.unwrap()).await.unwrap().valid);
     }
 
     #[tokio::test]
@@ -296,9 +308,5 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(https);
-
-        assert!(validate_google(&client, None, url).await.unwrap().valid);
-    }
+        assert!(validate_google_subscription(google::google_response(None, url).await.unwrap()).await.unwrap().valid);    }
 }
