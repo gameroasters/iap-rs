@@ -4,17 +4,15 @@ mod apple;
 mod google;
 
 use error::Result;
-use apple::{validate_apple_subscription, AppleUrls};
 use async_trait::async_trait;
-use google::{validate_google_subscription};
 use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
 
 const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
 const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
 
-pub use apple::{AppleResponse, apple_response};
-pub use google::{GoogleResponse, google_response};
+pub use apple::{AppleResponse, AppleUrls, apple_response, validate_apple_subscription};
+pub use google::{GoogleResponse, google_response, validate_google_subscription};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum Platform {
