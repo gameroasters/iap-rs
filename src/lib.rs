@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-mod error;
+pub mod error;
 mod apple;
 mod google;
 
