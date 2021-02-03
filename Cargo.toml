@@ -1,21 +1,21 @@
 [package]
 name = "iap"
 version = "0.1.0"
-authors = ["Stephan Dilly <dilly.stephan@gmail.com>"]
+authors = ["Stephan Dilly <dilly.stephan@gmail.com>, Lyon Beckers<lyonbeckers@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-async-recursion = "0.3.1"
-async-trait = "0.1.42"
-chrono = "0.4.19"
+async-recursion = "0.3"
+async-trait = "0.1"
+chrono = "0.4"
 hyper = { version = "0.14", features = ["http1"] }
-hyper-tls = "0.5.0"
+hyper-tls = "0.5"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.61"
+serde_json = "1.0"
 slog = { version = "2.7", features = [ "release_max_level_debug" ] }
-slog-scope = "4.4.0"
-thiserror = "1.0.23"
-yup-oauth2 = { git = "https://github.com/lyonbeckers/yup-oauth2.git", rev = "5b1facf", default-features = false, features = ["hyper-tls"] }
+slog-scope = "4.4"
+thiserror = "1.0"
+yup-oauth2 = { git = "https://github.com/dermesser/yup-oauth2.git", rev = "6b773c4", default-features = false, features = ["hyper-tls"] }
 
 [dev-dependencies]
 tokio = { version = "1.1", default-features = false, features = ["macros"] }

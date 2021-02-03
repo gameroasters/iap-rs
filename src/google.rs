@@ -5,6 +5,7 @@ use hyper::{body, Body, Client, Request};
 use hyper_tls::HttpsConnector;
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
+/// https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions#SubscriptionPurchase
 #[derive(Default, Serialize, Deserialize)]
 pub struct GoogleResponse {
     #[serde(rename = "expiryTimeMillis")]
@@ -26,8 +27,8 @@ pub struct GooglePlayData {
 }
 
 impl GooglePlayData {
-    pub fn from(payload: &str) -> std::result::Result<Self, serde_json::Error> {
-        serde_json::from_str(&payload)
+    pub fn from(payload: &str) -> Result<Self> {
+        Ok(serde_json::from_str(&payload)?)
     }
 
     pub fn get_uri(&self) -> Result<String> {
@@ -45,8 +46,8 @@ impl GooglePlayData {
         ))
     }
 
-    pub fn get_sku_details(&self) -> std::result::Result<GoogleSkuDetails, serde_json::Error> {
-        serde_json::from_str(&self.sku_details)
+    pub fn get_sku_details(&self) -> Result<GoogleSkuDetails> {
+        Ok(serde_json::from_str(&self.sku_details)?)
     }
 }
 
@@ -131,7 +132,7 @@ pub async fn google_response_with_uri(
     })
 }
 
-pub async fn validate_google_subscription(
+pub fn validate_google_subscription(
     response: GoogleResponse,
 ) -> Result<PurchaseResponse> {
     

@@ -90,7 +90,7 @@ pub async fn apple_response_with_urls(
     get_apple_response(&client, &request_body, apple_urls, true).await
 }
 
-pub async fn validate_apple_subscription(
+pub fn validate_apple_subscription(
     response: AppleResponse
 ) -> Result<PurchaseResponse> {
     
