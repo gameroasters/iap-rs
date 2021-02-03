@@ -69,11 +69,11 @@ pub async fn apple_response(
     receipt: &UnityPurchaseReceipt,
     password: Option<&String>,
 ) -> Result<AppleResponse> {
-    apple_response_internal(receipt, &AppleUrls::default(), password).await
+    apple_response_with_urls(receipt, &AppleUrls::default(), password).await
 }
 
-/// Internal function call with apple_urls parameter for tests
-pub async fn apple_response_internal(
+/// Response call with apple_urls parameter for tests
+pub async fn apple_response_with_urls(
     receipt: &UnityPurchaseReceipt,
     apple_urls: &AppleUrls<'_>,
     password: Option<&String>,
