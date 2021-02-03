@@ -131,12 +131,12 @@ mod tests {
     use mockito::mock;
     use serial_test::serial;
 
-    fn new_for_test(test_url: &str) -> UnityPurchaseValidator {
+    fn new_for_test<'a>(prod_url: &'a str, sandbox_url: &'a str) -> UnityPurchaseValidator<'a> {
         UnityPurchaseValidator {
             secret: Some(String::from("secret")),
             apple_urls: AppleUrls {
-                production: test_url,
-                sandbox: format!("{}/sb", test_url),
+                production: prod_url,
+                sandbox: sandbox_url,
             },
             service_account_key: None,
         }
@@ -168,7 +168,8 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let validator = new_for_test(url);
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
 
         assert!(
             validator
@@ -198,7 +199,8 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let validator = new_for_test(url);
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
 
         assert!(
             !validator
@@ -243,7 +245,8 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let validator = new_for_test(url);
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
 
         assert!(
             validator
@@ -264,7 +267,8 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let validator = new_for_test(url);
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
 
         assert!(
             !validator
