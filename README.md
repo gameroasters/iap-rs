@@ -34,7 +34,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // RECEIPT_INPUT would be the Json string containing the store, transaction id, and payload
     // from Unity IAP. ie:
-    // { "Store": "GooglePlay", "TransactionID": "<Txn ID>", "Payload": "<Payload>" }
+    // "{ \"Store\": \"GooglePlay\", \"TransactionID\": \"<Txn ID>\", \"Payload\": \"<Payload>\" }"
     let unity_receipt = UnityPurchaseReceipt::from(&std::env::var("RECEIPT_INPUT").unwrap()).unwrap();
 
     let response = validator.validate(&unity_receipt).await.unwrap();
