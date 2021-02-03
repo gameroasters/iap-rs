@@ -82,7 +82,7 @@ impl Validator for UnityPurchaseValidator<'_> {
                 if response.status == 0 {
                     //apple returns latest_receipt_info if it is a renewable subscription
                     match response.latest_receipt {
-                        Some(_) => validate_apple_subscription(response).await,
+                        Some(_) => validate_apple_subscription(response),
                         None => unimplemented!("validate consumable")
                     }
                 } else {
@@ -104,7 +104,7 @@ impl Validator for UnityPurchaseValidator<'_> {
                         if let Ok(response) = response_future.await
                         {
                             if sku_type == "subs" {
-                                validate_google_subscription(response).await
+                                validate_google_subscription(response)
                             } else {
                                 unimplemented!("validate consumable")
                             }
@@ -293,7 +293,7 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(!validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).await.unwrap().valid);
+        assert!(!validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).unwrap().valid);
     }
 
     #[tokio::test]
@@ -312,6 +312,6 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).await.unwrap().valid);    
+        assert!(validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).unwrap().valid);    
     }
 }
