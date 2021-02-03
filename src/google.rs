@@ -78,14 +78,14 @@ pub struct GooglePlayDataJson {
 /// Retrieves the response body from google
 pub async fn google_response(
     service_account_key: Option<&ServiceAccountKey>,
-    uri: &str,
+    uri: String,
 ) -> Result<GoogleResponse> {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
     slog::debug!(slog_scope::logger(), "validate google parameters";
     "service_account_key" => service_account_key.map(|key| &key.client_email).unwrap_or(&"key not set".to_string()),
-    "uri" => uri);
+    "uri" => uri.clone());
 
     let req = if let Some(key) = service_account_key {
         let authenticator = ServiceAccountAuthenticator::builder(key.clone())

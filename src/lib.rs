@@ -8,9 +8,6 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
 
-const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
-const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
-
 pub use apple::{AppleResponse, AppleUrls, apple_response, validate_apple_subscription};
 pub use google::{GoogleResponse, google_response, validate_google_subscription};
 
@@ -46,23 +43,14 @@ pub trait Validator: Send + Sync {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse>;
 }
 
-pub struct UnityPurchaseValidator {
+#[derive(Default)]
+pub struct UnityPurchaseValidator<'a> {
     secret: Option<String>,
-    apple_urls: AppleUrls,
+    apple_urls: AppleUrls<'a>,
     service_account_key: Option<ServiceAccountKey>,
 }
 
-impl UnityPurchaseValidator {
-    pub fn default() -> Self {
-        Self {
-            secret: None,
-            apple_urls: AppleUrls {
-                production: String::from(APPLE_PROD_VERIFY_RECEIPT),
-                sandbox: String::from(APPLE_TEST_VERIFY_RECEIPT),
-            },
-            service_account_key: None,
-        }
-    }
+impl UnityPurchaseValidator<'_> {
 
     #[allow(clippy::missing_const_for_fn)]
     pub fn set_apple_secret(self, secret: String) -> Self {
@@ -79,7 +67,7 @@ impl UnityPurchaseValidator {
 }
 
 #[async_trait]
-impl Validator for UnityPurchaseValidator {
+impl Validator for UnityPurchaseValidator<'_> {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse> {
 
         slog::debug!(slog_scope::logger(), "purchase receipt validation";
@@ -90,7 +78,7 @@ impl Validator for UnityPurchaseValidator {
 
         match receipt.store {
             Platform::AppleAppStore => {
-                let response = apple_response(receipt, &self.apple_urls, self.secret.as_ref()).await?;
+                let response = apple::apple_response_internal(receipt, &self.apple_urls, self.secret.as_ref()).await?;
                 if response.status == 0 {
                     //apple returns latest_receipt_info if it is a renewable subscription
                     match response.latest_receipt {
@@ -102,16 +90,30 @@ impl Validator for UnityPurchaseValidator {
                 }
             }
             Platform::GooglePlay => {
-                let google_data = google::GooglePlayData::from(&receipt.payload)?;
-                let response = google_response(self.service_account_key.as_ref(),
-                    &google_data.get_uri()?).await?;
-                //TODO: figure out what the response is on invalid data. Should we check against an error? Is it a status code similar to apple?
-                let sku_type = google_data.get_sku_details()?.sku_type;
-                if sku_type == "subs" {
-                    validate_google_subscription(response).await
-                } else {
-                    unimplemented!("validate consumable")
-                }
+
+                //TODO: clean all of this up if async move evey makes its way to rust stable
+                if let Ok((Ok(response_future), Ok(sku_type))) = google::GooglePlayData::from(&receipt.payload)
+                    .map(|data| 
+                        (
+                            data.get_uri()
+                                .map(|uri| google_response(self.service_account_key.as_ref(), uri)),
+                            data.get_sku_details()
+                                .map(|sku_details| sku_details.sku_type)
+                        )
+                    ) {
+                        if let Ok(response) = response_future.await
+                        {
+                            if sku_type == "subs" {
+                                validate_google_subscription(response).await
+                            } else {
+                                unimplemented!("validate consumable")
+                            }
+                        } else {
+                            Ok(PurchaseResponse{valid: false})
+                        }
+                    } else {
+                        Ok(PurchaseResponse{valid: false})
+                    }
             }
         }
     }
@@ -132,7 +134,7 @@ mod tests {
         UnityPurchaseValidator {
             secret: Some(String::from("secret")),
             apple_urls: AppleUrls {
-                production: String::from(test_url),
+                production: test_url,
                 sandbox: format!("{}/sb", test_url),
             },
             service_account_key: None,
@@ -287,7 +289,7 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(!validate_google_subscription(google::google_response(None, url).await.unwrap()).await.unwrap().valid);
+        assert!(!validate_google_subscription(google::google_response(None, url.clone()).await.unwrap()).await.unwrap().valid);
     }
 
     #[tokio::test]
@@ -306,5 +308,6 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(validate_google_subscription(google::google_response(None, url).await.unwrap()).await.unwrap().valid);    }
+        assert!(validate_google_subscription(google::google_response(None, url.clone()).await.unwrap()).await.unwrap().valid);    
+    }
 }

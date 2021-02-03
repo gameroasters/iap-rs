@@ -7,10 +7,21 @@ use hyper_tls::HttpsConnector;
 
 //https://developer.apple.com/documentation/appstorereceipts/status
 const APPLE_STATUS_CODE_TEST: i32 = 21007;
+const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
+const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
 
-pub struct AppleUrls {
-    pub production: String,
-    pub sandbox: String,
+pub struct AppleUrls<'a> {
+    pub production: &'a str,
+    pub sandbox: &'a str,
+}
+
+impl Default for AppleUrls<'_> {
+    fn default() -> Self {
+        AppleUrls {
+            production: APPLE_PROD_VERIFY_RECEIPT,
+            sandbox: APPLE_TEST_VERIFY_RECEIPT,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -56,7 +67,15 @@ pub struct AppleResponse {
 /// Retrieves the responseBody data from Apple
 pub async fn apple_response(
     receipt: &UnityPurchaseReceipt,
-    apple_urls: &AppleUrls,
+    password: Option<&String>,
+) -> Result<AppleResponse> {
+    apple_response_internal(receipt, &AppleUrls::default(), password).await
+}
+
+/// Internal function call with apple_urls parameter for tests
+pub async fn apple_response_internal(
+    receipt: &UnityPurchaseReceipt,
+    apple_urls: &AppleUrls<'_>,
     password: Option<&String>,
 ) -> Result<AppleResponse> {
     let https = HttpsConnector::new();
