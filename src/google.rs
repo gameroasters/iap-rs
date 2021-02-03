@@ -1,8 +1,8 @@
 use super::{error, error::Result, PurchaseResponse, UnityPurchaseReceipt};
 use chrono::Utc;
-use serde::{de::Error, Deserialize, Serialize};
 use hyper::{body, Body, Client, Request};
 use hyper_tls::HttpsConnector;
+use serde::{de::Error, Deserialize, Serialize};
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
 /// https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions#SubscriptionPurchase
@@ -33,13 +33,13 @@ impl GooglePlayData {
 
     pub fn get_uri(&self) -> Result<String> {
         let parameters: GooglePlayDataJson = serde_json::from_str(&self.json)?;
-    
+
         slog::debug!(slog_scope::logger(), "google purchase/receipt params";
             "package" => &parameters.package_name,
             "productId" => &parameters.product_id,
             "token" => &parameters.token
         );
-    
+
         Ok(format!(
             "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{}/purchases/subscriptions/{}/tokens/{}",
             parameters.package_name, parameters.product_id, parameters.token
@@ -78,7 +78,7 @@ pub struct GooglePlayDataJson {
 
 /// Retrieves the response body from google
 pub async fn google_response(
-    receipt: &UnityPurchaseReceipt, 
+    receipt: &UnityPurchaseReceipt,
     service_account_key: Option<&ServiceAccountKey>,
 ) -> Result<GoogleResponse> {
     let data = GooglePlayData::from(&receipt.payload)?;
@@ -132,10 +132,7 @@ pub async fn google_response_with_uri(
     })
 }
 
-pub fn validate_google_subscription(
-    response: GoogleResponse,
-) -> Result<PurchaseResponse> {
-    
+pub fn validate_google_subscription(response: GoogleResponse) -> Result<PurchaseResponse> {
     let expiry_time = response.expiry_time.parse::<i64>()?;
     let now = Utc::now().timestamp_millis();
     let valid = expiry_time > now;

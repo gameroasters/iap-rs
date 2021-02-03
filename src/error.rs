@@ -21,7 +21,7 @@ pub enum Error {
     ParseIntError(#[from] std::num::ParseIntError),
 
     #[error("utf8 error: {0}")]
-    FromUtf8Error(#[from] std::string::FromUtf8Error)
+    FromUtf8Error(#[from] std::string::FromUtf8Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

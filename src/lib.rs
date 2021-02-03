@@ -1,15 +1,19 @@
+mod apple;
 #[allow(unused_imports)]
 pub mod error;
-mod apple;
 mod google;
 
-use error::Result;
 use async_trait::async_trait;
+use error::Result;
 use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
 
-pub use apple::{AppleResponse, AppleUrls, apple_response, apple_response_with_urls, validate_apple_subscription};
-pub use google::{GoogleResponse, google_response, google_response_with_uri, validate_google_subscription};
+pub use apple::{
+    apple_response, apple_response_with_urls, validate_apple_subscription, AppleResponse, AppleUrls,
+};
+pub use google::{
+    google_response, google_response_with_uri, validate_google_subscription, GoogleResponse,
+};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum Platform {
@@ -51,7 +55,6 @@ pub struct UnityPurchaseValidator<'a> {
 }
 
 impl UnityPurchaseValidator<'_> {
-
     #[allow(clippy::missing_const_for_fn)]
     pub fn set_apple_secret(self, secret: String) -> Self {
         let mut new = self;
@@ -69,7 +72,6 @@ impl UnityPurchaseValidator<'_> {
 #[async_trait]
 impl Validator for UnityPurchaseValidator<'_> {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse> {
-
         slog::debug!(slog_scope::logger(), "purchase receipt validation";
             "store" => format!("{:?}",receipt.store),
             "transaction_id" => &receipt.transaction_id,
@@ -78,42 +80,47 @@ impl Validator for UnityPurchaseValidator<'_> {
 
         match receipt.store {
             Platform::AppleAppStore => {
-                let response = apple::apple_response_with_urls(receipt, &self.apple_urls, self.secret.as_ref()).await?;
+                let response = apple::apple_response_with_urls(
+                    receipt,
+                    &self.apple_urls,
+                    self.secret.as_ref(),
+                )
+                .await?;
                 if response.status == 0 {
                     //apple returns latest_receipt_info if it is a renewable subscription
                     match response.latest_receipt {
                         Some(_) => validate_apple_subscription(response),
-                        None => unimplemented!("validate consumable")
+                        None => unimplemented!("validate consumable"),
                     }
                 } else {
-                    Ok(PurchaseResponse{ valid: false })
+                    Ok(PurchaseResponse { valid: false })
                 }
             }
             Platform::GooglePlay => {
-
                 //TODO: clean all of this up if async move evey makes its way to rust stable
-                if let Ok((Ok(response_future), Ok(sku_type))) = google::GooglePlayData::from(&receipt.payload)
-                    .map(|data| 
+                if let Ok((Ok(response_future), Ok(sku_type))) =
+                    google::GooglePlayData::from(&receipt.payload).map(|data| {
                         (
-                            data.get_uri()
-                                .map(|uri| google_response_with_uri(self.service_account_key.as_ref(), uri)),
+                            data.get_uri().map(|uri| {
+                                google_response_with_uri(self.service_account_key.as_ref(), uri)
+                            }),
                             data.get_sku_details()
-                                .map(|sku_details| sku_details.sku_type)
+                                .map(|sku_details| sku_details.sku_type),
                         )
-                    ) {
-                        if let Ok(response) = response_future.await
-                        {
-                            if sku_type == "subs" {
-                                validate_google_subscription(response)
-                            } else {
-                                unimplemented!("validate consumable")
-                            }
+                    })
+                {
+                    if let Ok(response) = response_future.await {
+                        if sku_type == "subs" {
+                            validate_google_subscription(response)
                         } else {
-                            Ok(PurchaseResponse{valid: false})
+                            unimplemented!("validate consumable")
                         }
                     } else {
-                        Ok(PurchaseResponse{valid: false})
+                        Ok(PurchaseResponse { valid: false })
                     }
+                } else {
+                    Ok(PurchaseResponse { valid: false })
+                }
             }
         }
     }
@@ -293,7 +300,15 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(!validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).unwrap().valid);
+        assert!(
+            !validate_google_subscription(
+                google::google_response_with_uri(None, url.clone())
+                    .await
+                    .unwrap()
+            )
+            .unwrap()
+            .valid
+        );
     }
 
     #[tokio::test]
@@ -312,6 +327,14 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).unwrap().valid);    
+        assert!(
+            validate_google_subscription(
+                google::google_response_with_uri(None, url.clone())
+                    .await
+                    .unwrap()
+            )
+            .unwrap()
+            .valid
+        );
     }
 }
