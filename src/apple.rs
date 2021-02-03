@@ -82,8 +82,8 @@ pub async fn apple_response_internal(
     let client = Client::builder().build::<_, hyper::Body>(https);
 
     let password = password
-    .cloned()
-    .ok_or_else(|| IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "no apple secret has been set")))?;
+        .cloned()
+        .ok_or_else(|| IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "no apple secret has been set")))?;
     let request_body = serde_json::to_string(&AppleRequest {
         receipt_data: receipt.payload.clone(),
         password,
