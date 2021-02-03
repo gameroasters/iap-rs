@@ -4,11 +4,12 @@ mod apple;
 mod google;
 
 use error::Result;
+use apple::AppleUrls;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
 
-pub use apple::{AppleResponse, AppleUrls, apple_response, validate_apple_subscription};
+pub use apple::{AppleResponse, apple_response, validate_apple_subscription};
 pub use google::{GoogleResponse, google_response, validate_google_subscription};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
