@@ -56,7 +56,6 @@ pub struct AppleResponse {
     pub is_retryable: Option<bool>,
     pub environment: Option<String>,
     /// The latest Base64 encoded app receipt. Only returned for receipts that contain auto-renewable subscriptions. 
-    #[serde(rename = "latest-receipt")]
     pub latest_receipt: Option<String>,
     /// An array that contains all in-app purchase transactions. This excludes transactions for consumable products
     /// that have been marked as finished by your app. Only returned for receipts that contain auto-renewable subscriptions.
