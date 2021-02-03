@@ -77,13 +77,16 @@ pub struct GooglePlayDataJson {
 }
 
 /// Retrieves the response body from google
-pub async fn google_response(
+pub async fn google_response<S: AsRef<[u8]>>(
     receipt: &UnityPurchaseReceipt,
-    service_account_key: Option<&ServiceAccountKey>,
+    secret: S,
 ) -> Result<GoogleResponse> {
     let data = GooglePlayData::from(&receipt.payload)?;
     let uri = data.get_uri()?;
-    google_response_with_uri(service_account_key, uri).await
+
+    let service_account_key = get_service_account_key(secret)?;
+
+    google_response_with_uri(Some(&service_account_key), uri).await
 }
 
 /// Retrieves the google response with a specific uri, useful for running tests.
@@ -146,4 +149,8 @@ pub fn validate_google_subscription(response: GoogleResponse) -> Result<Purchase
     );
 
     Ok(PurchaseResponse { valid })
+}
+
+pub fn get_service_account_key<S: AsRef<[u8]>>(secret: S) -> Result<ServiceAccountKey> {
+    Ok(serde_json::from_slice(secret.as_ref())?)
 }

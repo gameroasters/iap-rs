@@ -69,9 +69,9 @@ pub struct AppleResponse {
 /// Retrieves the responseBody data from Apple
 pub async fn apple_response(
     receipt: &UnityPurchaseReceipt,
-    password: Option<&String>,
+    password: &str,
 ) -> Result<AppleResponse> {
-    apple_response_with_urls(receipt, &AppleUrls::default(), password).await
+    apple_response_with_urls(receipt, &AppleUrls::default(), Some(&password.to_string())).await
 }
 
 /// Response call with apple_urls parameter for tests

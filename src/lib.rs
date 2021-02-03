@@ -64,7 +64,7 @@ impl UnityPurchaseValidator<'_> {
 
     pub fn set_google_service_account_key<S: AsRef<[u8]>>(self, secret: S) -> Result<Self> {
         let mut new = self;
-        new.service_account_key = serde_json::from_slice(secret.as_ref())?;
+        new.service_account_key = Some(google::get_service_account_key(secret)?);
         Ok(new)
     }
 }
