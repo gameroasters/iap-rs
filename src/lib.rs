@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
 
 pub use apple::{AppleResponse, AppleUrls, apple_response, apple_response_with_urls, validate_apple_subscription};
-pub use google::{GoogleResponse, google_response, validate_google_subscription};
+pub use google::{GoogleResponse, google_response, google_response_with_uri, validate_google_subscription};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum Platform {
@@ -96,7 +96,7 @@ impl Validator for UnityPurchaseValidator<'_> {
                     .map(|data| 
                         (
                             data.get_uri()
-                                .map(|uri| google_response(self.service_account_key.as_ref(), uri)),
+                                .map(|uri| google_response_with_uri(self.service_account_key.as_ref(), uri)),
                             data.get_sku_details()
                                 .map(|sku_details| sku_details.sku_type)
                         )
@@ -293,7 +293,7 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(!validate_google_subscription(google::google_response(None, url.clone()).await.unwrap()).await.unwrap().valid);
+        assert!(!validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).await.unwrap().valid);
     }
 
     #[tokio::test]
@@ -312,6 +312,6 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(validate_google_subscription(google::google_response(None, url.clone()).await.unwrap()).await.unwrap().valid);    
+        assert!(validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).await.unwrap().valid);    
     }
 }

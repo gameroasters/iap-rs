@@ -1,4 +1,4 @@
-use super::{error, error::Result, PurchaseResponse};
+use super::{error, error::Result, PurchaseResponse, UnityPurchaseReceipt};
 use chrono::Utc;
 use serde::{de::Error, Deserialize, Serialize};
 use hyper::{body, Body, Client, Request};
@@ -77,6 +77,16 @@ pub struct GooglePlayDataJson {
 
 /// Retrieves the response body from google
 pub async fn google_response(
+    receipt: &UnityPurchaseReceipt, 
+    service_account_key: Option<&ServiceAccountKey>,
+) -> Result<GoogleResponse> {
+    let data = GooglePlayData::from(&receipt.payload)?;
+    let uri = data.get_uri()?;
+    google_response_with_uri(service_account_key, uri).await
+}
+
+/// Retrieves the google response with a specific uri, useful for running tests.
+pub async fn google_response_with_uri(
     service_account_key: Option<&ServiceAccountKey>,
     uri: String,
 ) -> Result<GoogleResponse> {
