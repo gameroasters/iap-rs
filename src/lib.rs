@@ -1,7 +1,8 @@
-mod apple;
 #[allow(unused_imports)]
-pub mod error;
+mod apple;
 mod google;
+
+pub mod error;
 
 use async_trait::async_trait;
 use error::Result;
@@ -27,6 +28,7 @@ impl Default for Platform {
     }
 }
 
+/// Represents the deserialized contents of the Json string delivered by Unity IAP.
 #[derive(Default, Deserialize, Serialize, Clone, Debug)]
 pub struct UnityPurchaseReceipt {
     #[serde(rename = "Store")]
@@ -35,6 +37,14 @@ pub struct UnityPurchaseReceipt {
     pub payload: String,
     #[serde(rename = "TransactionID")]
     pub transaction_id: String,
+}
+
+impl UnityPurchaseReceipt {
+    /// Create a UnityPurchaseReceipt from the Json string delivered by Unity IAP.
+    /// eg: "{ \"Store\": \"GooglePlay\", \"TransactionID\": \"<Txn ID>\", \"Payload\": \"<Payload>\" }"
+    pub fn from(json_str: &str) -> Result<Self> {
+        Ok(serde_json::from_str(json_str)?)
+    }
 }
 
 #[derive(Default, Deserialize, Serialize, Clone, Debug)]
@@ -47,14 +57,27 @@ pub trait Validator: Send + Sync {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse>;
 }
 
+/// Validator which stores our needed secrets for being able to authenticate against the stores' endpoints,
+/// and performs our validation.
+/// ```
+/// use iap::UnityPurchaseValidator;
+///
+/// let validator = UnityPurchaseValidator::default()
+///     .set_apple_secret("<APPLE_SECRET>".to_string())
+///     .set_google_service_account_key("<GOOGLE_KEY>".to_string());
+/// ```
 #[derive(Default)]
 pub struct UnityPurchaseValidator<'a> {
+    /// Apple's shared secret required by their requestBody. See: https://developer.apple.com/documentation/appstorereceipts/requestbody
     secret: Option<String>,
+    /// Should always be default unless we are using mock urls for offline unit tests.
     apple_urls: AppleUrls<'a>,
+    /// The service account key required for Google's authentication.
     service_account_key: Option<ServiceAccountKey>,
 }
 
 impl UnityPurchaseValidator<'_> {
+    /// Stores Apple's shared secret required by their requestBody. See: https://developer.apple.com/documentation/appstorereceipts/requestbody
     #[allow(clippy::missing_const_for_fn)]
     pub fn set_apple_secret(self, secret: String) -> Self {
         let mut new = self;
@@ -62,6 +85,13 @@ impl UnityPurchaseValidator<'_> {
         new
     }
 
+    /// Stores Google's service account key. Takes the Json provided by Google's API with the following
+    /// required fields:
+    /// {
+    ///     "private_key": "",
+    ///     "client_email": "",
+    ///     "token_uri": ""
+    /// }
     pub fn set_google_service_account_key<S: AsRef<[u8]>>(self, secret: S) -> Result<Self> {
         let mut new = self;
         new.service_account_key = Some(google::get_service_account_key(secret)?);

@@ -5,7 +5,9 @@ use hyper_tls::HttpsConnector;
 use serde::{de::Error, Deserialize, Serialize};
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
-/// https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions#SubscriptionPurchase
+/// See https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions#SubscriptionPurchase
+/// and https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products#ProductPurchase for details
+/// on each field.
 #[derive(Default, Serialize, Deserialize)]
 pub struct GoogleResponse {
     #[serde(rename = "expiryTimeMillis")]
@@ -135,6 +137,7 @@ pub async fn google_response_with_uri(
     })
 }
 
+/// Simply validates based on whether or not the subscription's expiration has passed.
 pub fn validate_google_subscription(response: GoogleResponse) -> Result<PurchaseResponse> {
     let expiry_time = response.expiry_time.parse::<i64>()?;
     let now = Utc::now().timestamp_millis();

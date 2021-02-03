@@ -13,6 +13,9 @@ const APPLE_STATUS_CODE_TEST: i32 = 21007;
 const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
 const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
 
+/// Convenience struct for storing our production and sandbox URLs. Best practice is to attempt to verify
+/// against production, and if that fails, to then request verification from the sandbox.
+/// See: https://developer.apple.com/documentation/appstorereceipts/verifyreceipt
 pub struct AppleUrls<'a> {
     pub production: &'a str,
     pub sandbox: &'a str,
@@ -34,6 +37,7 @@ pub struct AppleRequest {
     pub password: String,
 }
 
+/// See https://developer.apple.com/documentation/appstorereceipts/responsebody/latest_receipt_info for more details on each field.
 #[derive(Default, Serialize, Deserialize)]
 pub struct AppleLatestReceipt {
     pub quantity: String,
@@ -51,7 +55,7 @@ pub struct AppleLatestReceipt {
     pub transaction_id: String,
 }
 
-//see https://developer.apple.com/documentation/appstorereceipts/responsebody
+/// See https://developer.apple.com/documentation/appstorereceipts/responsebody for more details on each field
 #[derive(Default, Serialize, Deserialize)]
 pub struct AppleResponse {
     pub status: i32,
@@ -96,6 +100,7 @@ pub async fn apple_response_with_urls(
     get_apple_response(&client, &request_body, apple_urls, true).await
 }
 
+/// Simply validates based on whether or not the subscription's expiration has passed.
 pub fn validate_apple_subscription(response: AppleResponse) -> Result<PurchaseResponse> {
     let now = Utc::now().timestamp_millis();
 
