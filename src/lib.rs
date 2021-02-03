@@ -4,16 +4,12 @@ mod apple;
 mod google;
 
 use error::Result;
-use apple::{validate_apple, AppleUrls};
 use async_trait::async_trait;
-use google::{uri_from_payload, validate_google};
-use hyper_tls::HttpsConnector;
 use serde::{Deserialize, Serialize};
-use hyper::Client;
 use yup_oauth2::ServiceAccountKey;
 
-const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
-const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
+pub use apple::{AppleResponse, AppleUrls, apple_response, apple_response_with_urls, validate_apple_subscription};
+pub use google::{GoogleResponse, google_response, google_response_with_uri, validate_google_subscription};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum Platform {
@@ -47,23 +43,14 @@ pub trait Validator: Send + Sync {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse>;
 }
 
-pub struct UnityPurchaseValidator {
+#[derive(Default)]
+pub struct UnityPurchaseValidator<'a> {
     secret: Option<String>,
-    apple_urls: AppleUrls,
+    apple_urls: AppleUrls<'a>,
     service_account_key: Option<ServiceAccountKey>,
 }
 
-impl UnityPurchaseValidator {
-    pub fn default() -> Self {
-        Self {
-            secret: None,
-            apple_urls: AppleUrls {
-                production: String::from(APPLE_PROD_VERIFY_RECEIPT),
-                sandbox: String::from(APPLE_TEST_VERIFY_RECEIPT),
-            },
-            service_account_key: None,
-        }
-    }
+impl UnityPurchaseValidator<'_> {
 
     #[allow(clippy::missing_const_for_fn)]
     pub fn set_apple_secret(self, secret: String) -> Self {
@@ -80,10 +67,8 @@ impl UnityPurchaseValidator {
 }
 
 #[async_trait]
-impl Validator for UnityPurchaseValidator {
+impl Validator for UnityPurchaseValidator<'_> {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse> {
-        let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(https);
 
         slog::debug!(slog_scope::logger(), "purchase receipt validation";
             "store" => format!("{:?}",receipt.store),
@@ -93,15 +78,42 @@ impl Validator for UnityPurchaseValidator {
 
         match receipt.store {
             Platform::AppleAppStore => {
-                validate_apple(receipt, &client, &self.apple_urls, self.secret.as_ref()).await
+                let response = apple::apple_response_with_urls(receipt, &self.apple_urls, self.secret.as_ref()).await?;
+                if response.status == 0 {
+                    //apple returns latest_receipt_info if it is a renewable subscription
+                    match response.latest_receipt {
+                        Some(_) => validate_apple_subscription(response).await,
+                        None => unimplemented!("validate consumable")
+                    }
+                } else {
+                    Ok(PurchaseResponse{ valid: false })
+                }
             }
             Platform::GooglePlay => {
-                validate_google(
-                    &client,
-                    self.service_account_key.as_ref(),
-                    &uri_from_payload(&receipt.payload).unwrap_or_default(),
-                )
-                .await
+
+                //TODO: clean all of this up if async move evey makes its way to rust stable
+                if let Ok((Ok(response_future), Ok(sku_type))) = google::GooglePlayData::from(&receipt.payload)
+                    .map(|data| 
+                        (
+                            data.get_uri()
+                                .map(|uri| google_response_with_uri(self.service_account_key.as_ref(), uri)),
+                            data.get_sku_details()
+                                .map(|sku_details| sku_details.sku_type)
+                        )
+                    ) {
+                        if let Ok(response) = response_future.await
+                        {
+                            if sku_type == "subs" {
+                                validate_google_subscription(response).await
+                            } else {
+                                unimplemented!("validate consumable")
+                            }
+                        } else {
+                            Ok(PurchaseResponse{valid: false})
+                        }
+                    } else {
+                        Ok(PurchaseResponse{valid: false})
+                    }
             }
         }
     }
@@ -112,18 +124,18 @@ mod tests {
     use super::*;
     use crate::{
         apple::{AppleLatestReceipt, AppleResponse},
-        google::{validate_google, GoogleResponse},
+        google::{validate_google_subscription, GoogleResponse},
     };
     use chrono::{Duration, Utc};
     use mockito::mock;
     use serial_test::serial;
 
-    fn new_for_test(test_url: &str) -> UnityPurchaseValidator {
+    fn new_for_test<'a>(prod_url: &'a str, sandbox_url: &'a str) -> UnityPurchaseValidator<'a> {
         UnityPurchaseValidator {
             secret: Some(String::from("secret")),
             apple_urls: AppleUrls {
-                production: String::from(test_url),
-                sandbox: format!("{}/sb", test_url),
+                production: prod_url,
+                sandbox: sandbox_url,
             },
             service_account_key: None,
         }
@@ -133,6 +145,7 @@ mod tests {
     #[serial]
     async fn test_sandbox_response() {
         let apple_response = AppleResponse {
+            latest_receipt: Some(String::default()),
             latest_receipt_info: Some(vec![AppleLatestReceipt {
                 expires_date_ms: (Utc::now() + Duration::days(1))
                     .timestamp_millis()
@@ -154,7 +167,8 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let validator = new_for_test(url);
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
 
         assert!(
             validator
@@ -169,6 +183,7 @@ mod tests {
     #[serial]
     async fn test_invalid_receipt() {
         let apple_response = AppleResponse {
+            latest_receipt: Some(String::default()),
             latest_receipt_info: Some(vec![AppleLatestReceipt {
                 expires_date_ms: Utc::now().timestamp_millis().to_string(),
                 ..AppleLatestReceipt::default()
@@ -183,7 +198,8 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let validator = new_for_test(url);
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
 
         assert!(
             !validator
@@ -216,6 +232,7 @@ mod tests {
         ];
 
         let apple_response = AppleResponse {
+            latest_receipt: Some(String::default()),
             latest_receipt_info: Some(latest_receipt_info),
             ..AppleResponse::default()
         };
@@ -227,7 +244,8 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let validator = new_for_test(url);
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
 
         assert!(
             validator
@@ -248,7 +266,8 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let validator = new_for_test(url);
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
 
         assert!(
             !validator
@@ -274,10 +293,7 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(https);
-
-        assert!(!validate_google(&client, None, url).await.unwrap().valid);
+        assert!(!validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).await.unwrap().valid);
     }
 
     #[tokio::test]
@@ -296,9 +312,6 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(https);
-
-        assert!(validate_google(&client, None, url).await.unwrap().valid);
+        assert!(validate_google_subscription(google::google_response_with_uri(None, url.clone()).await.unwrap()).await.unwrap().valid);    
     }
 }

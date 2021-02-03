@@ -3,13 +3,25 @@ use async_recursion::async_recursion;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use hyper::{body, Body, Client, Request};
+use hyper_tls::HttpsConnector;
 
 //https://developer.apple.com/documentation/appstorereceipts/status
 const APPLE_STATUS_CODE_TEST: i32 = 21007;
+const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
+const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
 
-pub struct AppleUrls {
-    pub production: String,
-    pub sandbox: String,
+pub struct AppleUrls<'a> {
+    pub production: &'a str,
+    pub sandbox: &'a str,
+}
+
+impl Default for AppleUrls<'_> {
+    fn default() -> Self {
+        AppleUrls {
+            production: APPLE_PROD_VERIFY_RECEIPT,
+            sandbox: APPLE_TEST_VERIFY_RECEIPT,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -43,17 +55,31 @@ pub struct AppleResponse {
     #[serde(rename = "is-retryable")]
     pub is_retryable: Option<bool>,
     pub environment: Option<String>,
+    /// The latest Base64 encoded app receipt. Only returned for receipts that contain auto-renewable subscriptions. 
+    pub latest_receipt: Option<String>,
     /// An array that contains all in-app purchase transactions. This excludes transactions for consumable products
     /// that have been marked as finished by your app. Only returned for receipts that contain auto-renewable subscriptions.
+    #[serde(rename = "latest-receipt-info")]
     pub latest_receipt_info: Option<Vec<AppleLatestReceipt>>,
 }
 
-pub async fn validate_apple(
+/// Retrieves the responseBody data from Apple
+pub async fn apple_response(
     receipt: &UnityPurchaseReceipt,
-    client: &Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
-    apple_urls: &AppleUrls,
     password: Option<&String>,
-) -> Result<PurchaseResponse> {
+) -> Result<AppleResponse> {
+    apple_response_with_urls(receipt, &AppleUrls::default(), password).await
+}
+
+/// Response call with apple_urls parameter for tests
+pub async fn apple_response_with_urls(
+    receipt: &UnityPurchaseReceipt,
+    apple_urls: &AppleUrls<'_>,
+    password: Option<&String>,
+) -> Result<AppleResponse> {
+    let https = HttpsConnector::new();
+    let client = Client::builder().build::<_, hyper::Body>(https);
+
     let password = password
         .cloned()
         .ok_or_else(|| IoError(std::io::Error::new(std::io::ErrorKind::NotFound, "no apple secret has been set")))?;
@@ -61,8 +87,13 @@ pub async fn validate_apple(
         receipt_data: receipt.payload.clone(),
         password,
     })?;
-    let response = get_apple_response(client, &request_body, apple_urls, true).await?;
+    get_apple_response(&client, &request_body, apple_urls, true).await
+}
 
+pub async fn validate_apple_subscription(
+    response: AppleResponse
+) -> Result<PurchaseResponse> {
+    
     let now = Utc::now().timestamp_millis();
 
     let valid = response

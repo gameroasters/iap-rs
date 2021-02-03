@@ -1,7 +1,8 @@
-use super::{error, error::Result, PurchaseResponse};
+use super::{error, error::Result, PurchaseResponse, UnityPurchaseReceipt};
 use chrono::Utc;
 use serde::{de::Error, Deserialize, Serialize};
 use hyper::{body, Body, Client, Request};
+use hyper_tls::HttpsConnector;
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -17,15 +18,46 @@ pub struct GoogleResponse {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct GooglePlayParameters {
+pub struct GooglePlayData {
     pub json: String,
     pub signature: String,
     #[serde(rename = "skuDetails")]
     pub sku_details: String,
 }
 
+impl GooglePlayData {
+    pub fn from(payload: &str) -> std::result::Result<Self, serde_json::Error> {
+        serde_json::from_str(&payload)
+    }
+
+    pub fn get_uri(&self) -> Result<String> {
+        let parameters: GooglePlayDataJson = serde_json::from_str(&self.json)?;
+    
+        slog::debug!(slog_scope::logger(), "google purchase/receipt params";
+            "package" => &parameters.package_name,
+            "productId" => &parameters.product_id,
+            "token" => &parameters.token
+        );
+    
+        Ok(format!(
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{}/purchases/subscriptions/{}/tokens/{}",
+            parameters.package_name, parameters.product_id, parameters.token
+        ))
+    }
+
+    pub fn get_sku_details(&self) -> std::result::Result<GoogleSkuDetails, serde_json::Error> {
+        serde_json::from_str(&self.sku_details)
+    }
+}
+
+#[derive(Deserialize)]
+pub struct GoogleSkuDetails {
+    #[serde(rename = "type")]
+    pub sku_type: String,
+}
+
 #[derive(Serialize, Deserialize)]
-pub struct GooglePlayParametersJson {
+pub struct GooglePlayDataJson {
     #[serde(rename = "packageName")]
     pub package_name: String,
     #[serde(rename = "productId")]
@@ -43,14 +75,27 @@ pub struct GooglePlayParametersJson {
     pub purchase_state: i64, //0 - unspecified, 1 - purchased, 2 - pending
 }
 
-pub async fn validate_google(
-    client: &Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
+/// Retrieves the response body from google
+pub async fn google_response(
+    receipt: &UnityPurchaseReceipt, 
     service_account_key: Option<&ServiceAccountKey>,
-    uri: &str,
-) -> Result<PurchaseResponse> {
+) -> Result<GoogleResponse> {
+    let data = GooglePlayData::from(&receipt.payload)?;
+    let uri = data.get_uri()?;
+    google_response_with_uri(service_account_key, uri).await
+}
+
+/// Retrieves the google response with a specific uri, useful for running tests.
+pub async fn google_response_with_uri(
+    service_account_key: Option<&ServiceAccountKey>,
+    uri: String,
+) -> Result<GoogleResponse> {
+    let https = HttpsConnector::new();
+    let client = Client::builder().build::<_, hyper::Body>(https);
+
     slog::debug!(slog_scope::logger(), "validate google parameters";
     "service_account_key" => service_account_key.map(|key| &key.client_email).unwrap_or(&"key not set".to_string()),
-    "uri" => uri);
+    "uri" => uri.clone());
 
     let req = if let Some(key) = service_account_key {
         let authenticator = ServiceAccountAuthenticator::builder(key.clone())
@@ -75,16 +120,21 @@ pub async fn validate_google(
             .body(Body::empty())
     }?;
 
-    let resp = client.request(req).await?;
-    let buf = body::to_bytes(resp).await?;
+    let response = client.request(req).await?;
+    let buf = body::to_bytes(response).await?;
     let string = String::from_utf8(buf.to_vec())?.replace("\n", "");
     slog::debug!(slog_scope::logger(), "Google response: {}", &string);
-    let response: GoogleResponse = serde_json::from_slice(&buf).map_err(|err| {
+    serde_json::from_slice(&buf).map_err(|err| {
         error::Error::SerdeError(serde_json::Error::custom(format!(
             "Failed to deserialize google response. Was the service account key set? Error message: {}", err)
         ))
-    })?;
+    })
+}
 
+pub async fn validate_google_subscription(
+    response: GoogleResponse,
+) -> Result<PurchaseResponse> {
+    
     let expiry_time = response.expiry_time.parse::<i64>()?;
     let now = Utc::now().timestamp_millis();
     let valid = expiry_time > now;
@@ -98,20 +148,4 @@ pub async fn validate_google(
     );
 
     Ok(PurchaseResponse { valid })
-}
-
-pub fn uri_from_payload(payload: &str) -> Result<String> {
-    let parameters: GooglePlayParameters = serde_json::from_str(&payload)?;
-    let parameters: GooglePlayParametersJson = serde_json::from_str(&parameters.json)?;
-
-    slog::debug!(slog_scope::logger(), "google purchase/receipt params";
-        "package" => &parameters.package_name,
-        "productId" => &parameters.product_id,
-        "token" => &parameters.token
-    );
-
-    Ok(format!(
-        "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/{}/purchases/subscriptions/{}/tokens/{}",
-        parameters.package_name, parameters.product_id, parameters.token
-    ))
 }
