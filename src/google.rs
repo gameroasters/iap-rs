@@ -36,10 +36,11 @@ impl GooglePlayData {
     pub fn get_uri(&self) -> Result<String> {
         let parameters: GooglePlayDataJson = serde_json::from_str(&self.json)?;
 
-        slog::debug!(slog_scope::logger(), "google purchase/receipt params";
-            "package" => &parameters.package_name,
-            "productId" => &parameters.product_id,
-            "token" => &parameters.token
+        log::debug!(
+            "google purchase/receipt params, package: {}, productId: {}, token: {}",
+            &parameters.package_name,
+            &parameters.product_id,
+            &parameters.token
         );
 
         Ok(format!(
@@ -99,9 +100,13 @@ pub async fn get_google_receipt_data_with_uri(
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
 
-    slog::debug!(slog_scope::logger(), "validate google parameters";
-    "service_account_key" => service_account_key.map(|key| &key.client_email).unwrap_or(&"key not set".to_string()),
-    "uri" => uri.clone());
+    log::debug!(
+        "validate google parameters, service_account_key: {}, uri: {}",
+        service_account_key
+            .map(|key| &key.client_email)
+            .unwrap_or(&"key not set".to_string()),
+        uri.clone()
+    );
 
     let req = if let Some(key) = service_account_key {
         let authenticator = ServiceAccountAuthenticator::builder(key.clone())
@@ -129,7 +134,7 @@ pub async fn get_google_receipt_data_with_uri(
     let response = client.request(req).await?;
     let buf = body::to_bytes(response).await?;
     let string = String::from_utf8(buf.to_vec())?.replace("\n", "");
-    slog::debug!(slog_scope::logger(), "Google response: {}", &string);
+    log::debug!("Google response: {}", &string);
     serde_json::from_slice(&buf).map_err(|err| {
         error::Error::SerdeError(serde_json::Error::custom(format!(
             "Failed to deserialize google response. Was the service account key set? Error message: {}", err)
@@ -143,12 +148,13 @@ pub fn validate_google_subscription(response: GoogleResponse) -> Result<Purchase
     let now = Utc::now().timestamp_millis();
     let valid = expiry_time > now;
 
-    slog::info!(slog_scope::logger(), "google receipt verification: {}", valid;
-        "now" => now,
-        "order_id" => response.order_id,
-        "expiry_time" => response.expiry_time,
-        "price_currency_code" => response.price_currency_code,
-        "price_amount_micros" => response.price_amount_micros
+    log::info!("google receipt verification, valid: {}, now: {}, order_id: {}, expiry_time: {}, price_currency_code: {}, price_amount_micros: {}",
+        valid,
+        now,
+        response.order_id,
+        response.expiry_time,
+        response.price_currency_code,
+        response.price_amount_micros
     );
 
     Ok(PurchaseResponse { valid })

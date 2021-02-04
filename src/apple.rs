@@ -152,8 +152,7 @@ async fn get_apple_response(
     let resp = client.request(req).await?;
     let buf = body::to_bytes(resp).await?;
 
-    slog::debug!(
-        slog_scope::logger(),
+    log::debug!(
         "apple response: {}",
         String::from_utf8_lossy(&buf).replace("\n", "")
     );
@@ -170,10 +169,10 @@ async fn get_apple_response(
             })
             .map(|receipt| receipt.expires_date.clone())
     });
-    slog::info!(
-        slog_scope::logger(), "apple response";
-        "status" => &response.status,
-        "latest_expires" => latest_expires_date,
+    log::info!(
+        "apple response, status: {}, latest_expires: {:?}",
+        &response.status,
+        latest_expires_date,
     );
 
     if response.status == APPLE_STATUS_CODE_TEST {
