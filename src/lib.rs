@@ -104,7 +104,8 @@ impl UnityPurchaseValidator<'_> {
 #[async_trait]
 impl Validator for UnityPurchaseValidator<'_> {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse> {
-        log::debug!(target: "validator", "store: {:?}, transaction_id: {}, payload: {}",
+        log::debug!(
+            "store: {:?}, transaction_id: {}, payload: {}",
             receipt.store,
             &receipt.transaction_id,
             &receipt.payload,
