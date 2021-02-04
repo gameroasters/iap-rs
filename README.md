@@ -50,7 +50,7 @@ If you wanted more granular control and access to the response from the store's 
 For the Play Store:
 ```rust
 pub async fn validate(receipt: &UnityPurchaseReceipt) -> error::Result<PurchaseResponse> {
-    let response = google_response(receipt, GOOGLE_KEY).await?;
+    let response = get_google_receipt_data(receipt, GOOGLE_KEY).await?;
 
     // debug or validate on your own with the data in the response
     println!("Expiry data: {}", response.expiry_time);
@@ -63,7 +63,7 @@ pub async fn validate(receipt: &UnityPurchaseReceipt) -> error::Result<PurchaseR
 For the AppStore:
 ```rust
 pub async fn validate(receipt: &UnityPurchaseReceipt) -> error::Result<PurchaseResponse> {
-    let response = apple_response(receipt, APPLE_SECRET).await?;
+    let response = get_apple_receipt_data(receipt, APPLE_SECRET).await?;
 
     // was this purchase made in the production or sandbox environment
     println!("Environment: {}", response.environment.clone().unwrap());

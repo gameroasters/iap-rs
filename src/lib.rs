@@ -10,10 +10,12 @@ use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
 
 pub use apple::{
-    apple_response, apple_response_with_urls, validate_apple_subscription, AppleResponse, AppleUrls,
+    get_apple_receipt_data, get_apple_receipt_data_with_urls, validate_apple_subscription,
+    AppleResponse, AppleUrls,
 };
 pub use google::{
-    google_response, google_response_with_uri, validate_google_subscription, GoogleResponse,
+    get_google_receipt_data, get_google_receipt_data_with_uri, validate_google_subscription,
+    GoogleResponse,
 };
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -110,7 +112,7 @@ impl Validator for UnityPurchaseValidator<'_> {
 
         match receipt.store {
             Platform::AppleAppStore => {
-                let response = apple::apple_response_with_urls(
+                let response = apple::get_apple_receipt_data_with_urls(
                     receipt,
                     &self.apple_urls,
                     self.secret.as_ref(),
@@ -132,7 +134,10 @@ impl Validator for UnityPurchaseValidator<'_> {
                     google::GooglePlayData::from(&receipt.payload).map(|data| {
                         (
                             data.get_uri().map(|uri| {
-                                google_response_with_uri(self.service_account_key.as_ref(), uri)
+                                get_google_receipt_data_with_uri(
+                                    self.service_account_key.as_ref(),
+                                    uri,
+                                )
                             }),
                             data.get_sku_details()
                                 .map(|sku_details| sku_details.sku_type),
@@ -332,7 +337,7 @@ mod tests {
 
         assert!(
             !validate_google_subscription(
-                google::google_response_with_uri(None, url.clone())
+                google::get_google_receipt_data_with_uri(None, url.clone())
                     .await
                     .unwrap()
             )
@@ -359,7 +364,7 @@ mod tests {
 
         assert!(
             validate_google_subscription(
-                google::google_response_with_uri(None, url.clone())
+                google::get_google_receipt_data_with_uri(None, url.clone())
                     .await
                     .unwrap()
             )

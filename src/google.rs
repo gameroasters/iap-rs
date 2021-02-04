@@ -79,7 +79,7 @@ pub struct GooglePlayDataJson {
 }
 
 /// Retrieves the response body from google
-pub async fn google_response<S: AsRef<[u8]>>(
+pub async fn get_google_receipt_data<S: AsRef<[u8]>>(
     receipt: &UnityPurchaseReceipt,
     secret: S,
 ) -> Result<GoogleResponse> {
@@ -88,11 +88,11 @@ pub async fn google_response<S: AsRef<[u8]>>(
 
     let service_account_key = get_service_account_key(secret)?;
 
-    google_response_with_uri(Some(&service_account_key), uri).await
+    get_google_receipt_data_with_uri(Some(&service_account_key), uri).await
 }
 
 /// Retrieves the google response with a specific uri, useful for running tests.
-pub async fn google_response_with_uri(
+pub async fn get_google_receipt_data_with_uri(
     service_account_key: Option<&ServiceAccountKey>,
     uri: String,
 ) -> Result<GoogleResponse> {
