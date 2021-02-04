@@ -5,7 +5,7 @@
 iap-rs is a rust library for verifying receipt information for purchases made through the Google Play Store or the Apple AppStore.
 
 ## Current Features
-- Validating receipt data received from Unity's IAP plugin to verify subscriptions and if they are valid and not expired
+- Validating receipt data received from [Unity's IAP plugin](https://docs.unity3d.com/Manual/UnityIAP.html) to verify subscriptions and if they are valid and not expired
 - Helper functions to receive response data from Google/Apple for more granular error handling or validation
 
 ### Supported Transaction Types
