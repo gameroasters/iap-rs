@@ -22,7 +22,7 @@ jobs:
       run: cargo build
     - name: clippy
       run: |
-        - cargo clean -p iap
-        - cargo clippy
+        cargo clean -p iap
+        cargo clippy
     - name: Run tests
       run: cargo test
