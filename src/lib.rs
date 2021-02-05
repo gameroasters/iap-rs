@@ -82,11 +82,11 @@ pub trait Validator: Send + Sync {
 #[derive(Default)]
 pub struct UnityPurchaseValidator<'a> {
     /// Apple's shared secret required by their requestBody. See: https://developer.apple.com/documentation/appstorereceipts/requestbody
-    secret: Option<String>,
+    pub secret: Option<String>,
     /// Should always be default unless we are using mock urls for offline unit tests.
-    apple_urls: AppleUrls<'a>,
+    pub apple_urls: AppleUrls<'a>,
     /// The service account key required for Google's authentication.
-    service_account_key: Option<ServiceAccountKey>,
+    pub service_account_key: Option<ServiceAccountKey>,
 }
 
 impl UnityPurchaseValidator<'_> {
