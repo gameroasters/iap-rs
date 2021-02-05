@@ -103,7 +103,7 @@ pub use google::{
 /// This is the platform on which the purchase that created the unity receipt was made.
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum Platform {
-    /// iOS
+    /// iOS and macOS
     AppleAppStore,
     /// Android
     GooglePlay,
