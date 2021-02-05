@@ -1,3 +1,5 @@
+#![allow(clippy::module_name_repetitions)]
+
 use super::{error, error::Result, PurchaseResponse, UnityPurchaseReceipt};
 use chrono::Utc;
 use hyper::{body, Body, Client, Request};
@@ -9,7 +11,6 @@ use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 /// and <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products#ProductPurchase> for details
 /// on each field.
 #[derive(Default, Serialize, Deserialize)]
-#[allow(clippy::module_name_repetitions)]
 pub struct GoogleResponse {
     /// Time at which the subscription will expire, in milliseconds since the Epoch.
     #[serde(rename = "expiryTimeMillis")]
@@ -26,7 +27,6 @@ pub struct GoogleResponse {
 }
 
 #[derive(Serialize, Deserialize)]
-#[allow(clippy::module_name_repetitions)]
 pub struct GooglePlayData {
     pub json: String,
     pub signature: String,
@@ -67,7 +67,6 @@ pub struct SkuDetails {
 }
 
 #[derive(Serialize, Deserialize)]
-#[allow(clippy::module_name_repetitions)]
 pub struct GooglePlayDataJson {
     #[serde(rename = "packageName")]
     pub package_name: String,

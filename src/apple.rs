@@ -1,3 +1,5 @@
+#![allow(clippy::module_name_repetitions)]
+
 use super::{
     error::{Error::IoError, Result},
     PurchaseResponse, UnityPurchaseReceipt,
@@ -16,7 +18,6 @@ const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
 /// Convenience struct for storing our production and sandbox URLs. Best practice is to attempt to verify
 /// against production, and if that fails, to then request verification from the sandbox.
 /// See: <https://developer.apple.com/documentation/appstorereceipts/verifyreceipt>
-#[allow(clippy::module_name_repetitions)]
 pub struct AppleUrls<'a> {
     /// By default, <https://buy.itunes.apple.com>
     pub production: &'a str,
@@ -34,7 +35,6 @@ impl Default for AppleUrls<'_> {
 }
 
 #[derive(Serialize)]
-#[allow(clippy::module_name_repetitions)]
 pub struct AppleRequest {
     #[serde(rename = "receipt-data")]
     pub receipt_data: String,
@@ -43,7 +43,6 @@ pub struct AppleRequest {
 
 /// See <https://developer.apple.com/documentation/appstorereceipts/responsebody/latest_receipt_info> for more details on each field.
 #[derive(Default, Serialize, Deserialize)]
-#[allow(clippy::module_name_repetitions)]
 pub struct AppleLatestReceipt {
     pub quantity: String,
     /// The time Apple customer support canceled a transaction, or the time an auto-renewable subscription plan was upgraded,
@@ -62,7 +61,6 @@ pub struct AppleLatestReceipt {
 
 /// See <https://developer.apple.com/documentation/appstorereceipts/responsebody> for more details on each field
 #[derive(Default, Serialize, Deserialize)]
-#[allow(clippy::module_name_repetitions)]
 pub struct AppleResponse {
     /// Either 0 if the receipt is valid, or a status code if there is an error. The status code reflects the status of the app receipt as a whole.
     pub status: i32,
