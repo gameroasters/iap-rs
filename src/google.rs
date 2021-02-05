@@ -30,7 +30,7 @@ pub struct GooglePlayData {
 
 impl GooglePlayData {
     pub fn from(payload: &str) -> Result<Self> {
-        Ok(serde_json::from_str(&payload)?)
+        Ok(serde_json::from_str(payload)?)
     }
 
     pub fn get_uri(&self) -> Result<String> {
@@ -80,7 +80,7 @@ pub struct GooglePlayDataJson {
 }
 
 /// Retrieves the response body from google
-pub async fn get_google_receipt_data<S: AsRef<[u8]>>(
+pub async fn get_google_receipt_data<S: AsRef<[u8]> + Send>(
     receipt: &UnityPurchaseReceipt,
     secret: S,
 ) -> Result<GoogleResponse> {

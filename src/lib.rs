@@ -1,4 +1,15 @@
-#[allow(unused_imports)]
+#![forbid(unsafe_code)]
+//TODO: enable
+// #![deny(clippy::pedantic)]
+// #![deny(missing_docs)]
+#![deny(clippy::cargo)]
+#![allow(clippy::multiple_crate_versions)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::panic)]
+#![deny(clippy::perf)]
+#![deny(clippy::nursery)]
+#![deny(clippy::match_like_matches_macro)]
+
 mod apple;
 mod google;
 

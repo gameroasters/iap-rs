@@ -3,6 +3,11 @@ name = "iap"
 version = "0.1.0"
 authors = ["Stephan Dilly <dilly.stephan@gmail.com>, Lyon Beckers<lyonbeckers@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/gameroasters/iap-rs"
+license = "MIT"
+keywords = ["google","apple","mobile","purchases","verifaction"]
+categories = ["web-programming","asynchronous"]
+description = "async google/apple receipt validation using hyper"
 
 [dependencies]
 async-recursion = "0.3"

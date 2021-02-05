@@ -1,3 +1,5 @@
+#![allow(clippy::clippy::pub_enum_variant_names)]
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
