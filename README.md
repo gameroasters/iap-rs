@@ -1,3 +1,5 @@
+![Build](https://github.com/gameroasters/iap-rs/workflows/Build/badge.svg)
+
 # iap
 
 iap is a rust library for verifying receipt information for purchases made through the Google Play Store or the Apple App Store.
@@ -69,5 +71,3 @@ pub async fn validate(receipt: &UnityPurchaseReceipt) -> error::Result<PurchaseR
     Ok(validate_apple_subscription(&response))
 }
 ```
-
-License: MIT
