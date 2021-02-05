@@ -1,3 +1,5 @@
+#![allow(clippy::module_name_repetitions)]
+
 use super::{
     error::{Error::IoError, Result},
     PurchaseResponse, UnityPurchaseReceipt,
@@ -15,9 +17,11 @@ const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
 
 /// Convenience struct for storing our production and sandbox URLs. Best practice is to attempt to verify
 /// against production, and if that fails, to then request verification from the sandbox.
-/// See: https://developer.apple.com/documentation/appstorereceipts/verifyreceipt
+/// See: <https://developer.apple.com/documentation/appstorereceipts/verifyreceipt>
 pub struct AppleUrls<'a> {
+    /// By default, <https://buy.itunes.apple.com>
     pub production: &'a str,
+    /// By default, <https://sandbox.itunes.apple.com>
     pub sandbox: &'a str,
 }
 
@@ -37,7 +41,7 @@ pub struct AppleRequest {
     pub password: String,
 }
 
-/// See https://developer.apple.com/documentation/appstorereceipts/responsebody/latest_receipt_info for more details on each field.
+/// See <https://developer.apple.com/documentation/appstorereceipts/responsebody/latest_receipt_info> for more details on each field.
 #[derive(Default, Serialize, Deserialize)]
 pub struct AppleLatestReceipt {
     pub quantity: String,
@@ -55,12 +59,16 @@ pub struct AppleLatestReceipt {
     pub transaction_id: String,
 }
 
-/// See https://developer.apple.com/documentation/appstorereceipts/responsebody for more details on each field
+/// See <https://developer.apple.com/documentation/appstorereceipts/responsebody> for more details on each field
 #[derive(Default, Serialize, Deserialize)]
 pub struct AppleResponse {
+    /// Either 0 if the receipt is valid, or a status code if there is an error. The status code reflects the status of the app receipt as a whole.
     pub status: i32,
+    /// An indicator that an error occurred during the request. A value of 1 indicates a temporary issue; retry validation for this receipt at a later time. A value of 0 indicates an unresolvable issue; do not retry validation for this receipt. Only applicable to status codes 21100-21199.
     #[serde(rename = "is-retryable")]
     pub is_retryable: Option<bool>,
+    /// The environment for which the receipt was generated.
+    /// Possible values: Sandbox, Production
     pub environment: Option<String>,
     /// The latest Base64 encoded app receipt. Only returned for receipts that contain auto-renewable subscriptions.
     pub latest_receipt: Option<String>,
@@ -71,6 +79,9 @@ pub struct AppleResponse {
 }
 
 /// Retrieves the responseBody data from Apple
+/// # Errors
+/// Will return an error if no apple secret is set in `password` or
+/// if there is there is valid response from the `apple_urls` endpoints.
 pub async fn get_apple_receipt_data(
     receipt: &UnityPurchaseReceipt,
     password: &str,
@@ -79,7 +90,10 @@ pub async fn get_apple_receipt_data(
         .await
 }
 
-/// Response call with apple_urls parameter for tests
+/// Response call with `AppleUrls` parameter for tests
+/// # Errors
+/// Will return an error if no apple secret is set in `password` or
+/// if there is there is valid response from the `apple_urls` endpoints.
 pub async fn get_apple_receipt_data_with_urls(
     receipt: &UnityPurchaseReceipt,
     apple_urls: &AppleUrls<'_>,
@@ -102,7 +116,8 @@ pub async fn get_apple_receipt_data_with_urls(
 }
 
 /// Simply validates based on whether or not the subscription's expiration has passed.
-pub fn validate_apple_subscription(response: AppleResponse) -> Result<PurchaseResponse> {
+#[allow(clippy::must_use_candidate)]
+pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse {
     let now = Utc::now().timestamp_millis();
 
     let valid = response
@@ -127,7 +142,7 @@ pub fn validate_apple_subscription(response: AppleResponse) -> Result<PurchaseRe
         })
         .unwrap_or_default();
 
-    Ok(PurchaseResponse { valid })
+    PurchaseResponse { valid }
 }
 
 #[async_recursion]
