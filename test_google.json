@@ -1,0 +1,14 @@
+{
+    "startTimeMillis": "1611752122282",
+    "expiryTimeMillis": "1611754323467",
+    "autoRenewing": false,
+    "priceCurrencyCode": "EUR",
+    "priceAmountMicros": "5990000",
+    "countryCode": "DE",
+    "developerPayload": "",
+    "cancelReason": 1,
+    "orderId": "",
+    "purchaseType": 0,
+    "acknowledgementState": 1,
+    "kind": "androidpublisher#subscriptionPurchase"
+}
