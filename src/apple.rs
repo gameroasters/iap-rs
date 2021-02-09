@@ -74,7 +74,6 @@ pub struct AppleResponse {
     pub latest_receipt: Option<String>,
     /// An array that contains all in-app purchase transactions. This excludes transactions for consumable products
     /// that have been marked as finished by your app. Only returned for receipts that contain auto-renewable subscriptions.
-    #[serde(rename = "latest-receipt-info")]
     pub latest_receipt_info: Option<Vec<AppleLatestReceipt>>,
 }
 
