@@ -65,7 +65,6 @@ pub struct AppleResponse {
     /// Either 0 if the receipt is valid, or a status code if there is an error. The status code reflects the status of the app receipt as a whole.
     pub status: i32,
     /// An indicator that an error occurred during the request. A value of 1 indicates a temporary issue; retry validation for this receipt at a later time. A value of 0 indicates an unresolvable issue; do not retry validation for this receipt. Only applicable to status codes 21100-21199.
-    #[serde(rename = "is-retryable")]
     pub is_retryable: Option<bool>,
     /// The environment for which the receipt was generated.
     /// Possible values: Sandbox, Production
@@ -74,7 +73,6 @@ pub struct AppleResponse {
     pub latest_receipt: Option<String>,
     /// An array that contains all in-app purchase transactions. This excludes transactions for consumable products
     /// that have been marked as finished by your app. Only returned for receipts that contain auto-renewable subscriptions.
-    #[serde(rename = "latest-receipt-info")]
     pub latest_receipt_info: Option<Vec<AppleLatestReceipt>>,
 }
 
