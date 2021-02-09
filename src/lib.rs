@@ -449,7 +449,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_apple() {
-        let file = std::fs::read("test_apple.json").unwrap();
+        let file = std::fs::read("res/test_apple.json").unwrap();
         let apple_response: AppleResponse = serde_json::from_slice(&file).unwrap();
 
         assert!(apple_response.latest_receipt.is_some());
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_google() {
-        let file = std::fs::read("test_google.json").unwrap();
+        let file = std::fs::read("res/test_google.json").unwrap();
         let _google_response: GoogleResponse = serde_json::from_slice(&file).unwrap();
     }
 
