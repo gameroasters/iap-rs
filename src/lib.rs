@@ -151,7 +151,12 @@ pub struct PurchaseResponse {
 pub trait Validator: Send + Sync {
     /// Called to perform the validation on whichever platform is described in the provided UnityPurchaseReceipt.
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse>;
-    /// Similar to the helper function `crate::get_apple_receipt_data`, an associated function for pulling the response from owned secrets.
+}
+
+/// Trait which allows us to retrieve receipt data from an object's own secrets.
+#[async_trait]
+pub trait ReceiptDataGetter {
+    /// Similar to the helper function `crate::get_apple_receipt_data`, an associated function for pulling the response from owned secrets. x
     async fn get_apple_receipt_data(&self, receipt: &UnityPurchaseReceipt)
         -> Result<AppleResponse>;
     /// Similar to the helper function `crate::get_google_receipt_data`, an associated function for pulling the response from owned secrets.
@@ -160,6 +165,9 @@ pub trait Validator: Send + Sync {
         receipt: &UnityPurchaseReceipt,
     ) -> Result<GoogleResponse>;
 }
+
+/// Convenience trait which combines `ReceiptDataGetter` and `Validator` traits.
+pub trait ReceiptValidator: ReceiptDataGetter + Validator {}
 
 /// Validator which stores our needed secrets for being able to authenticate against the stores' endpoints,
 /// and performs our validation.
@@ -179,6 +187,8 @@ pub struct UnityPurchaseValidator<'a> {
     /// The service account key required for Google's authentication.
     pub service_account_key: Option<ServiceAccountKey>,
 }
+
+impl ReceiptValidator for UnityPurchaseValidator<'_> {}
 
 impl UnityPurchaseValidator<'_> {
     /// Stores Apple's shared secret required by their requestBody. See: <https://developer.apple.com/documentation/appstorereceipts/requestbody>
@@ -268,7 +278,10 @@ impl Validator for UnityPurchaseValidator<'_> {
             }
         }
     }
+}
 
+#[async_trait]
+impl ReceiptDataGetter for UnityPurchaseValidator<'_> {
     async fn get_apple_receipt_data(
         &self,
         receipt: &UnityPurchaseReceipt,

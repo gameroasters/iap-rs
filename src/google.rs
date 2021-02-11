@@ -24,6 +24,9 @@ pub struct GoogleResponse {
     /// The order id of the latest recurring order associated with the purchase of the subscription.
     #[serde(rename = "orderId")]
     pub order_id: String,
+    /// The type of purchase of the subscription. This field is only set if this purchase was not made using the standard in-app billing flow. Possible values are: 0. Test (i.e. purchased from a license testing account) 1. Promo (i.e. purchased using a promo code)
+    #[serde(rename = "purchaseType")]
+    pub purchase_type: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize)]
