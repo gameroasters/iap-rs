@@ -155,7 +155,7 @@ pub trait Validator: Send + Sync {
 
 /// Trait which allows us to retrieve receipt data from an object's own secrets.
 #[async_trait]
-pub trait ReceiptDataGetter {
+pub trait ReceiptDataFetcher {
     /// Similar to the helper function `crate::get_apple_receipt_data`, an associated function for pulling the response from owned secrets. x
     async fn get_apple_receipt_data(&self, receipt: &UnityPurchaseReceipt)
         -> Result<AppleResponse>;
@@ -166,8 +166,8 @@ pub trait ReceiptDataGetter {
     ) -> Result<GoogleResponse>;
 }
 
-/// Convenience trait which combines `ReceiptDataGetter` and `Validator` traits.
-pub trait ReceiptValidator: ReceiptDataGetter + Validator {}
+/// Convenience trait which combines `ReceiptDataFetcher` and `Validator` traits.
+pub trait ReceiptValidator: ReceiptDataFetcher + Validator {}
 
 /// Validator which stores our needed secrets for being able to authenticate against the stores' endpoints,
 /// and performs our validation.
@@ -281,7 +281,7 @@ impl Validator for UnityPurchaseValidator<'_> {
 }
 
 #[async_trait]
-impl ReceiptDataGetter for UnityPurchaseValidator<'_> {
+impl ReceiptDataFetcher for UnityPurchaseValidator<'_> {
     async fn get_apple_receipt_data(
         &self,
         receipt: &UnityPurchaseReceipt,

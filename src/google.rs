@@ -10,7 +10,7 @@ use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 /// See <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions#SubscriptionPurchase>
 /// and <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products#ProductPurchase> for details
 /// on each field.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct GoogleResponse {
     /// Time at which the subscription will expire, in milliseconds since the Epoch.
     #[serde(rename = "expiryTimeMillis")]
