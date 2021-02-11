@@ -151,6 +151,14 @@ pub struct PurchaseResponse {
 pub trait Validator: Send + Sync {
     /// Called to perform the validation on whichever platform is described in the provided UnityPurchaseReceipt.
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse>;
+    /// Similar to the helper function `crate::get_apple_receipt_data`, an associated function for pulling the response from owned secrets.
+    async fn get_apple_receipt_data(&self, receipt: &UnityPurchaseReceipt)
+        -> Result<AppleResponse>;
+    /// Similar to the helper function `crate::get_google_receipt_data`, an associated function for pulling the response from owned secrets.
+    async fn get_google_receipt_data(
+        &self,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<GoogleResponse>;
 }
 
 /// Validator which stores our needed secrets for being able to authenticate against the stores' endpoints,
@@ -259,6 +267,24 @@ impl Validator for UnityPurchaseValidator<'_> {
                 }
             }
         }
+    }
+
+    async fn get_apple_receipt_data(
+        &self,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<AppleResponse> {
+        get_apple_receipt_data_with_urls(receipt, &self.apple_urls, self.secret.as_ref()).await
+    }
+
+    async fn get_google_receipt_data(
+        &self,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<GoogleResponse> {
+        get_google_receipt_data_with_uri(
+            self.service_account_key.as_ref(),
+            google::GooglePlayData::from(&receipt.payload)?.get_uri()?,
+        )
+        .await
     }
 }
 
