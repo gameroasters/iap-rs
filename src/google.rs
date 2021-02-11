@@ -10,7 +10,7 @@ use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 /// See <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.subscriptions#SubscriptionPurchase>
 /// and <https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products#ProductPurchase> for details
 /// on each field.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct GoogleResponse {
     /// Time at which the subscription will expire, in milliseconds since the Epoch.
     #[serde(rename = "expiryTimeMillis")]
@@ -24,6 +24,9 @@ pub struct GoogleResponse {
     /// The order id of the latest recurring order associated with the purchase of the subscription.
     #[serde(rename = "orderId")]
     pub order_id: String,
+    /// The type of purchase of the subscription. This field is only set if this purchase was not made using the standard in-app billing flow. Possible values are: 0. Test (i.e. purchased from a license testing account) 1. Promo (i.e. purchased using a promo code)
+    #[serde(rename = "purchaseType")]
+    pub purchase_type: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -88,7 +91,7 @@ pub struct GooglePlayDataJson {
 /// Retrieves the response body from google
 /// # Errors
 /// Will return an error if authentication fails, if there is no response from the endpoint, or if the `payload` in the `UnityPurchaseReceipt` is malformed.
-pub async fn get_google_receipt_data<S: AsRef<[u8]> + Send>(
+pub async fn fetch_google_receipt_data<S: AsRef<[u8]> + Send>(
     receipt: &UnityPurchaseReceipt,
     secret: S,
 ) -> Result<GoogleResponse> {
@@ -97,13 +100,13 @@ pub async fn get_google_receipt_data<S: AsRef<[u8]> + Send>(
 
     let service_account_key = get_service_account_key(secret)?;
 
-    get_google_receipt_data_with_uri(Some(&service_account_key), uri).await
+    fetch_google_receipt_data_with_uri(Some(&service_account_key), uri).await
 }
 
 /// Retrieves the google response with a specific uri, useful for running tests.
 /// # Errors
 /// Will return an error if authentication fails, if there is no response from the endpoint, or if the `payload` in the `UnityPurchaseReceipt` is malformed.
-pub async fn get_google_receipt_data_with_uri(
+pub async fn fetch_google_receipt_data_with_uri(
     service_account_key: Option<&ServiceAccountKey>,
     uri: String,
 ) -> Result<GoogleResponse> {

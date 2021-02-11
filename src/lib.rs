@@ -47,7 +47,7 @@
 //! ```rust
 //! # use iap::*;
 //! pub async fn validate(receipt: &UnityPurchaseReceipt) -> error::Result<PurchaseResponse> {
-//!     let response = get_google_receipt_data(receipt, "<GOOGLE_KEY>").await?;
+//!     let response = fetch_google_receipt_data(receipt, "<GOOGLE_KEY>").await?;
 //!
 //!     // debug or validate on your own with the data in the response
 //!     println!("Expiry data: {}", response.expiry_time);
@@ -61,7 +61,7 @@
 //! ```rust
 //! # use iap::*;
 //! pub async fn validate(receipt: &UnityPurchaseReceipt) -> error::Result<PurchaseResponse> {
-//!     let response = get_apple_receipt_data(receipt, "<APPLE_SECRET>").await?;
+//!     let response = fetch_apple_receipt_data(receipt, "<APPLE_SECRET>").await?;
 //!
 //!     // was this purchase made in the production or sandbox environment
 //!     println!("Environment: {}", response.environment.clone().unwrap());
@@ -92,11 +92,11 @@ use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
 
 pub use apple::{
-    get_apple_receipt_data, get_apple_receipt_data_with_urls, validate_apple_subscription,
+    fetch_apple_receipt_data, fetch_apple_receipt_data_with_urls, validate_apple_subscription,
     AppleResponse, AppleUrls,
 };
 pub use google::{
-    get_google_receipt_data, get_google_receipt_data_with_uri, validate_google_subscription,
+    fetch_google_receipt_data, fetch_google_receipt_data_with_uri, validate_google_subscription,
     GoogleResponse,
 };
 
@@ -153,6 +153,24 @@ pub trait Validator: Send + Sync {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse>;
 }
 
+/// Trait which allows us to retrieve receipt data from an object's own secrets.
+#[async_trait]
+pub trait ReceiptDataFetcher {
+    /// Similar to the helper function `crate::fetch_apple_receipt_data`, an associated function for pulling the response from owned secrets. x
+    async fn fetch_apple_receipt_data(
+        &self,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<AppleResponse>;
+    /// Similar to the helper function `crate::fetch_google_receipt_data`, an associated function for pulling the response from owned secrets.
+    async fn fetch_google_receipt_data(
+        &self,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<GoogleResponse>;
+}
+
+/// Convenience trait which combines `ReceiptDataFetcher` and `Validator` traits.
+pub trait ReceiptValidator: ReceiptDataFetcher + Validator {}
+
 /// Validator which stores our needed secrets for being able to authenticate against the stores' endpoints,
 /// and performs our validation.
 /// ```
@@ -171,6 +189,8 @@ pub struct UnityPurchaseValidator<'a> {
     /// The service account key required for Google's authentication.
     pub service_account_key: Option<ServiceAccountKey>,
 }
+
+impl ReceiptValidator for UnityPurchaseValidator<'_> {}
 
 impl UnityPurchaseValidator<'_> {
     /// Stores Apple's shared secret required by their requestBody. See: <https://developer.apple.com/documentation/appstorereceipts/requestbody>
@@ -213,7 +233,7 @@ impl Validator for UnityPurchaseValidator<'_> {
 
         match receipt.store {
             Platform::AppleAppStore => {
-                let response = apple::get_apple_receipt_data_with_urls(
+                let response = apple::fetch_apple_receipt_data_with_urls(
                     receipt,
                     &self.apple_urls,
                     self.secret.as_ref(),
@@ -235,7 +255,7 @@ impl Validator for UnityPurchaseValidator<'_> {
                     google::GooglePlayData::from(&receipt.payload).map(|data| {
                         (
                             data.get_uri().map(|uri| {
-                                get_google_receipt_data_with_uri(
+                                fetch_google_receipt_data_with_uri(
                                     self.service_account_key.as_ref(),
                                     uri,
                                 )
@@ -259,6 +279,27 @@ impl Validator for UnityPurchaseValidator<'_> {
                 }
             }
         }
+    }
+}
+
+#[async_trait]
+impl ReceiptDataFetcher for UnityPurchaseValidator<'_> {
+    async fn fetch_apple_receipt_data(
+        &self,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<AppleResponse> {
+        fetch_apple_receipt_data_with_urls(receipt, &self.apple_urls, self.secret.as_ref()).await
+    }
+
+    async fn fetch_google_receipt_data(
+        &self,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<GoogleResponse> {
+        fetch_google_receipt_data_with_uri(
+            self.service_account_key.as_ref(),
+            google::GooglePlayData::from(&receipt.payload)?.get_uri()?,
+        )
+        .await
     }
 }
 
@@ -438,7 +479,7 @@ mod tests {
 
         assert!(
             !validate_google_subscription(
-                &google::get_google_receipt_data_with_uri(None, url.clone())
+                &google::fetch_google_receipt_data_with_uri(None, url.clone())
                     .await
                     .unwrap()
             )
@@ -481,7 +522,7 @@ mod tests {
 
         assert!(
             validate_google_subscription(
-                &google::get_google_receipt_data_with_uri(None, url.clone())
+                &google::fetch_google_receipt_data_with_uri(None, url.clone())
                     .await
                     .unwrap()
             )
