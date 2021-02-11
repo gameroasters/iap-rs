@@ -1,6 +1,6 @@
 [package]
 name = "iap"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Stephan Dilly <dilly.stephan@gmail.com>, Lyon Beckers<lyonbeckers@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/gameroasters/iap-rs"
