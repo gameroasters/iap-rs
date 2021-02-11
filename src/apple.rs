@@ -81,11 +81,11 @@ pub struct AppleResponse {
 /// # Errors
 /// Will return an error if no apple secret is set in `password` or
 /// if there is there is valid response from the `apple_urls` endpoints.
-pub async fn get_apple_receipt_data(
+pub async fn fetch_apple_receipt_data(
     receipt: &UnityPurchaseReceipt,
     password: &str,
 ) -> Result<AppleResponse> {
-    get_apple_receipt_data_with_urls(receipt, &AppleUrls::default(), Some(&password.to_string()))
+    fetch_apple_receipt_data_with_urls(receipt, &AppleUrls::default(), Some(&password.to_string()))
         .await
 }
 
@@ -93,7 +93,7 @@ pub async fn get_apple_receipt_data(
 /// # Errors
 /// Will return an error if no apple secret is set in `password` or
 /// if there is there is valid response from the `apple_urls` endpoints.
-pub async fn get_apple_receipt_data_with_urls(
+pub async fn fetch_apple_receipt_data_with_urls(
     receipt: &UnityPurchaseReceipt,
     apple_urls: &AppleUrls<'_>,
     password: Option<&String>,
@@ -111,7 +111,7 @@ pub async fn get_apple_receipt_data_with_urls(
         receipt_data: receipt.payload.clone(),
         password,
     })?;
-    get_apple_response(&client, &request_body, apple_urls, true).await
+    fetch_apple_response(&client, &request_body, apple_urls, true).await
 }
 
 /// Simply validates based on whether or not the subscription's expiration has passed.
@@ -145,7 +145,7 @@ pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse
 }
 
 #[async_recursion]
-async fn get_apple_response(
+async fn fetch_apple_response(
     client: &Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
     request_body: &str,
     apple_urls: &AppleUrls,
@@ -190,7 +190,7 @@ async fn get_apple_response(
     );
 
     if response.status == APPLE_STATUS_CODE_TEST {
-        get_apple_response(client, request_body, apple_urls, false).await
+        fetch_apple_response(client, request_body, apple_urls, false).await
     } else {
         Ok(response)
     }

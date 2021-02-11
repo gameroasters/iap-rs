@@ -91,7 +91,7 @@ pub struct GooglePlayDataJson {
 /// Retrieves the response body from google
 /// # Errors
 /// Will return an error if authentication fails, if there is no response from the endpoint, or if the `payload` in the `UnityPurchaseReceipt` is malformed.
-pub async fn get_google_receipt_data<S: AsRef<[u8]> + Send>(
+pub async fn fetch_google_receipt_data<S: AsRef<[u8]> + Send>(
     receipt: &UnityPurchaseReceipt,
     secret: S,
 ) -> Result<GoogleResponse> {
@@ -100,13 +100,13 @@ pub async fn get_google_receipt_data<S: AsRef<[u8]> + Send>(
 
     let service_account_key = get_service_account_key(secret)?;
 
-    get_google_receipt_data_with_uri(Some(&service_account_key), uri).await
+    fetch_google_receipt_data_with_uri(Some(&service_account_key), uri).await
 }
 
 /// Retrieves the google response with a specific uri, useful for running tests.
 /// # Errors
 /// Will return an error if authentication fails, if there is no response from the endpoint, or if the `payload` in the `UnityPurchaseReceipt` is malformed.
-pub async fn get_google_receipt_data_with_uri(
+pub async fn fetch_google_receipt_data_with_uri(
     service_account_key: Option<&ServiceAccountKey>,
     uri: String,
 ) -> Result<GoogleResponse> {
