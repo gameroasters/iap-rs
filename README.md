@@ -1,5 +1,10 @@
 ![Build](https://github.com/gameroasters/iap-rs/workflows/Build/badge.svg)
 
+[![crates][s1]][l1]
+
+[s1]: https://img.shields.io/crates/v/iap.svg
+[l1]: https://crates.io/crates/iap
+
 # iap
 
 iap is a rust library for verifying receipt information for purchases made through the Google Play Store or the Apple App Store.
