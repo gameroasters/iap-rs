@@ -1,5 +1,5 @@
 //! Convenience types for lib specific error handling
-#![allow(clippy::clippy::pub_enum_variant_names)]
+#![allow(clippy::pub_enum_variant_names)]
 
 use thiserror::Error;
 
