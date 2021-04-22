@@ -1,7 +1,11 @@
-![Build](https://github.com/gameroasters/iap-rs/workflows/Build/badge.svg) [![crates][s1]][l1]
+![Build](https://github.com/gameroasters/iap-rs/workflows/Build/badge.svg) 
+[![crates][s1]][l1]
+[![Docs][s2]][l2]
 
 [s1]: https://img.shields.io/crates/v/iap.svg
 [l1]: https://crates.io/crates/iap
+[s2]: https://docs.rs/iap/badge.svg
+[l2]: https://docs.rs/fb-api
 
 # iap
 
