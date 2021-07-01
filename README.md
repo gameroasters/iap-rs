@@ -5,7 +5,7 @@
 [s1]: https://img.shields.io/crates/v/iap.svg
 [l1]: https://crates.io/crates/iap
 [s2]: https://docs.rs/iap/badge.svg
-[l2]: https://docs.rs/fb-api
+[l2]: https://docs.rs/iap
 
 # iap
 
