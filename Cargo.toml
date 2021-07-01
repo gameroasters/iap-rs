@@ -1,6 +1,6 @@
 [package]
 name = "iap"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Stephan Dilly <dilly.stephan@gmail.com>, Lyon Beckers<lyonbeckers@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/gameroasters/iap-rs"
@@ -8,7 +8,6 @@ license = "MIT"
 keywords = ["google","apple","mobile","purchases","verifaction"]
 categories = ["web-programming","asynchronous"]
 description = "async google/apple receipt validation using hyper"
-resolver = "2"
 
 [dependencies]
 async-recursion = "0.3"
@@ -23,6 +22,6 @@ thiserror = "1.0"
 yup-oauth2 = { version="5.0.3", default-features = false, features = ["hyper-tls"] }
 
 [dev-dependencies]
-tokio = { version = "1.5", default-features = false, features = ["macros"] }
+tokio = { version = "1", default-features = false, features = ["macros"] }
 mockito = "0.30"
 serial_test = "0.5.1"
