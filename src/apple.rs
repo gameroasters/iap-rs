@@ -172,7 +172,7 @@ pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse
     let now = Utc::now().timestamp_millis();
 
     //TODO: look up by transaction_id as a major optimization
-    let valid = response
+    let (valid, product_id) = response
         .latest_receipt_info
         .as_ref()
         .and_then(|receipts| {
@@ -188,7 +188,7 @@ pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse
                     receipt
                         .expires_date_ms
                         .parse::<i64>()
-                        .map(|expiry_time| expiry_time > now)
+                        .map(|expiry_time| (expiry_time > now, receipt.product_id.clone()))
                         .ok()
                 })
         })
@@ -196,8 +196,7 @@ pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse
 
     PurchaseResponse {
         valid,
-        //TODO:
-        product_id: None,
+        product_id: Some(product_id),
     }
 }
 
