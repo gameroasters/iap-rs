@@ -131,15 +131,7 @@ pub async fn fetch_google_receipt_data<S: AsRef<[u8]> + Send>(
 
     let service_account_key = get_service_account_key(secret)?;
 
-    let mut response = fetch_google_receipt_data_with_uri(Some(&service_account_key), uri).await?;
-
-    if response.product_id.is_none() {
-        tracing::info!("Product id was not set in the response, getting from unity metadata");
-        let parameters: GooglePlayDataJson = serde_json::from_str(&data.json)?;
-        response.product_id = Some(parameters.product_id);
-    }
-
-    Ok(response)
+    fetch_google_receipt_data_with_uri(Some(&service_account_key), uri, Some(data)).await
 }
 
 /// Retrieves the google response with a specific uri, useful for running tests.
@@ -148,6 +140,7 @@ pub async fn fetch_google_receipt_data<S: AsRef<[u8]> + Send>(
 pub async fn fetch_google_receipt_data_with_uri(
     service_account_key: Option<&ServiceAccountKey>,
     uri: String,
+    data: Option<GooglePlayData>,
 ) -> Result<GoogleResponse> {
     let https = HttpsConnector::new();
     let client = Client::builder().build::<_, hyper::Body>(https);
@@ -185,11 +178,22 @@ pub async fn fetch_google_receipt_data_with_uri(
     let buf = body::to_bytes(response).await?;
     let string = String::from_utf8(buf.to_vec())?.replace("\n", "");
     tracing::debug!("Google response: {}", &string);
-    serde_json::from_slice(&buf).map_err(|err| {
+    let mut response: GoogleResponse = serde_json::from_slice(&buf).map_err(|err| {
         error::Error::SerdeError(serde_json::Error::custom(format!(
             "Failed to deserialize google response. Was the service account key set? Error message: {}", err)
         ))
-    })
+    })?;
+
+    if response.product_id.is_none() {
+        if let Some(data) = data {
+            tracing::info!("Product id was not set in the response, getting from unity metadata");
+            let parameters: GooglePlayDataJson = serde_json::from_str(&data.json)?;
+
+            response.product_id = Some(parameters.product_id);
+        }
+    }
+
+    Ok(response)
 }
 
 /// Simply validates based on whether or not the subscription's expiration has passed.

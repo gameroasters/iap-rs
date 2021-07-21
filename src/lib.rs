@@ -268,6 +268,7 @@ impl Validator for UnityPurchaseValidator<'_> {
                                     fetch_google_receipt_data_with_uri(
                                         self.service_account_key.as_ref(),
                                         uri,
+                                        Some(data),
                                     )
                                 }),
                                 sku_type,
@@ -316,6 +317,7 @@ impl ReceiptDataFetcher for UnityPurchaseValidator<'_> {
         fetch_google_receipt_data_with_uri(
             self.service_account_key.as_ref(),
             data.get_uri(&sku_type)?,
+            Some(data),
         )
         .await
         .map(|response| (response, sku_type))
@@ -509,7 +511,7 @@ mod tests {
 
         assert!(
             !validate_google_subscription(
-                &google::fetch_google_receipt_data_with_uri(None, url.clone())
+                &google::fetch_google_receipt_data_with_uri(None, url.clone(), None,)
                     .await
                     .unwrap()
             )
@@ -554,7 +556,7 @@ mod tests {
 
         assert!(
             validate_google_subscription(
-                &google::fetch_google_receipt_data_with_uri(None, url.clone())
+                &google::fetch_google_receipt_data_with_uri(None, url.clone(), None,)
                     .await
                     .unwrap()
             )
