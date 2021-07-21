@@ -42,7 +42,7 @@ pub struct AppleRequest {
 }
 
 /// See <https://developer.apple.com/documentation/appstorereceipts/responsebody/latest_receipt_info> for more details on each field.
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct AppleLatestReceipt {
     pub quantity: String,
     /// The time Apple customer support canceled a transaction, or the time an auto-renewable subscription plan was upgraded,
@@ -60,7 +60,7 @@ pub struct AppleLatestReceipt {
 }
 
 /// See <https://developer.apple.com/documentation/appstorereceipts/responsebody> for more details on each field
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct AppleResponse {
     /// Either 0 if the receipt is valid, or a status code if there is an error. The status code reflects the status of the app receipt as a whole.
     pub status: i32,
@@ -75,6 +75,58 @@ pub struct AppleResponse {
     /// An array that contains all in-app purchase transactions. This excludes transactions for consumable products
     /// that have been marked as finished by your app. Only returned for receipts that contain auto-renewable subscriptions.
     pub latest_receipt_info: Option<Vec<AppleLatestReceipt>>,
+    /// A JSON representation of the receipt that was sent for verification
+    pub receipt: Option<AppleReceipt>,
+}
+
+impl AppleResponse {
+    #[must_use]
+    /// Returns true if the receipt we are validating is from a subscription purchase
+    pub fn is_subscription(&self, transaction_id: &str) -> bool {
+        self.receipt
+            .as_ref()
+            .and_then(|receipt| receipt.get_transaction(transaction_id))
+            .filter(|in_app| in_app.expires_date_ms.is_some())
+            .is_some()
+    }
+
+    #[must_use]
+    /// Get the unique identifier of the product set in App Store Connect, ie: productIdentifier property of the `SKPayment` object
+    pub fn get_product_id(&self, transaction_id: &str) -> Option<String> {
+        self.receipt
+            .clone()
+            .and_then(|receipt| receipt.get_transaction(transaction_id).cloned())
+            .and_then(|in_app| in_app.product_id)
+    }
+}
+
+/// See <https://developer.apple.com/documentation/appstorereceipts/responsebody/receipt> for more details on each field
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct AppleReceipt {
+    /// An array that contains the in-app purchase receipt fields for all in-app purchase transactions.
+    pub in_app: Option<Vec<AppleInAppReceipt>>,
+}
+
+impl AppleReceipt {
+    pub fn get_transaction(&self, transaction_id: &str) -> Option<&AppleInAppReceipt> {
+        self.in_app.as_ref().and_then(|in_app| {
+            in_app
+                .iter()
+                .find(|in_app| in_app.transaction_id.as_deref() == Some(transaction_id))
+        })
+    }
+}
+
+/// See <https://developer.apple.com/documentation/appstorereceipts/responsebody/receipt/in_app> for more details on each field
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct AppleInAppReceipt {
+    /// The unique identifier of the product purchased. You provide this value when creating the product
+    /// in App Store Connect, and it corresponds to the productIdentifier property of the SKPayment object stored in the
+    /// transaction's payment property.
+    pub product_id: Option<String>,
+    /// A unique identifier for a transaction such as a purchase, restore, or renewal.
+    pub transaction_id: Option<String>,
+    pub expires_date_ms: Option<String>,
 }
 
 /// Retrieves the responseBody data from Apple
@@ -119,7 +171,8 @@ pub async fn fetch_apple_receipt_data_with_urls(
 pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse {
     let now = Utc::now().timestamp_millis();
 
-    let valid = response
+    //TODO: look up by transaction_id as a major optimization
+    let (valid, product_id) = response
         .latest_receipt_info
         .as_ref()
         .and_then(|receipts| {
@@ -135,13 +188,27 @@ pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse
                     receipt
                         .expires_date_ms
                         .parse::<i64>()
-                        .map(|expiry_time| expiry_time > now)
+                        .map(|expiry_time| (expiry_time > now, receipt.product_id.clone()))
                         .ok()
                 })
         })
         .unwrap_or_default();
 
-    PurchaseResponse { valid }
+    PurchaseResponse {
+        valid,
+        product_id: Some(product_id),
+    }
+}
+
+/// Validates that a package status is valid
+#[allow(clippy::must_use_candidate)]
+pub fn validate_apple_package(response: &AppleResponse, transaction_id: &str) -> PurchaseResponse {
+    let valid = response.status == 0;
+
+    PurchaseResponse {
+        valid,
+        product_id: response.get_product_id(transaction_id),
+    }
 }
 
 #[async_recursion]
@@ -166,7 +233,7 @@ async fn fetch_apple_response(
     let resp = client.request(req).await?;
     let buf = body::to_bytes(resp).await?;
 
-    log::debug!(
+    tracing::debug!(
         "apple response: {}",
         String::from_utf8_lossy(&buf).replace("\n", "")
     );
@@ -183,7 +250,7 @@ async fn fetch_apple_response(
             })
             .map(|receipt| receipt.expires_date.clone())
     });
-    log::info!(
+    tracing::info!(
         "apple response, status: {}, latest_expires: {:?}",
         &response.status,
         latest_expires_date,

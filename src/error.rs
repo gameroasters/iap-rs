@@ -33,6 +33,10 @@ pub enum Error {
     /// From utf8 errors
     #[error("utf8 error: {0}")]
     FromUtf8Error(#[from] std::string::FromUtf8Error),
+
+    /// Custom error
+    #[error("custom error: {0}")]
+    Custom(String),
 }
 
 /// Convenience type for Results

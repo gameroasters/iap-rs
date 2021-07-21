@@ -50,7 +50,7 @@
 //!     let response = fetch_google_receipt_data(receipt, "<GOOGLE_KEY>").await?;
 //!
 //!     // debug or validate on your own with the data in the response
-//!     println!("Expiry data: {}", response.expiry_time);
+//!     println!("Expiry data: {:?}", response.expiry_time);
 //!
 //!     // or just simply validate the response
 //!     validate_google_subscription(&response)
@@ -92,12 +92,12 @@ use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
 
 pub use apple::{
-    fetch_apple_receipt_data, fetch_apple_receipt_data_with_urls, validate_apple_subscription,
-    AppleResponse, AppleUrls,
+    fetch_apple_receipt_data, fetch_apple_receipt_data_with_urls, validate_apple_package,
+    validate_apple_subscription, AppleResponse, AppleUrls,
 };
 pub use google::{
-    fetch_google_receipt_data, fetch_google_receipt_data_with_uri, validate_google_subscription,
-    GoogleResponse,
+    fetch_google_receipt_data, fetch_google_receipt_data_with_uri, validate_google_package,
+    validate_google_subscription, GoogleResponse, SkuType,
 };
 
 /// This is the platform on which the purchase that created the unity receipt was made.
@@ -144,6 +144,8 @@ impl UnityPurchaseReceipt {
 pub struct PurchaseResponse {
     /// Valid if true
     pub valid: bool,
+    /// Product identifier
+    pub product_id: Option<String>,
 }
 
 /// The base trait for implementing a validator. Mock Validators can be made for running local tests by implementing this trait.
@@ -165,7 +167,7 @@ pub trait ReceiptDataFetcher {
     async fn fetch_google_receipt_data(
         &self,
         receipt: &UnityPurchaseReceipt,
-    ) -> Result<GoogleResponse>;
+    ) -> Result<(GoogleResponse, SkuType)>;
 }
 
 /// Convenience trait which combines `ReceiptDataFetcher` and `Validator` traits.
@@ -197,6 +199,7 @@ impl UnityPurchaseValidator<'_> {
     #[allow(clippy::missing_const_for_fn)]
     #[allow(clippy::must_use_candidate)]
     pub fn set_apple_secret(self, secret: String) -> Self {
+        tracing::info!("Setting apple secret");
         let mut new = self;
         new.secret = Some(secret);
         new
@@ -224,7 +227,7 @@ impl UnityPurchaseValidator<'_> {
 #[async_trait]
 impl Validator for UnityPurchaseValidator<'_> {
     async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse> {
-        log::debug!(
+        tracing::debug!(
             "store: {:?}, transaction_id: {}, payload: {}",
             receipt.store,
             &receipt.transaction_id,
@@ -239,43 +242,57 @@ impl Validator for UnityPurchaseValidator<'_> {
                     self.secret.as_ref(),
                 )
                 .await?;
+
+                dbg!(&response);
                 if response.status == 0 {
-                    //apple returns latest_receipt_info if it is a renewable subscription
-                    match response.latest_receipt {
-                        Some(_) => Ok(validate_apple_subscription(&response)),
-                        None => unimplemented!("validate consumable"),
+                    if response.is_subscription(&receipt.transaction_id) {
+                        Ok(validate_apple_subscription(&response))
+                    } else {
+                        Ok(validate_apple_package(&response, &receipt.transaction_id))
                     }
                 } else {
-                    Ok(PurchaseResponse { valid: false })
+                    Ok(PurchaseResponse {
+                        valid: false,
+                        product_id: response.get_product_id(&receipt.transaction_id),
+                    })
                 }
             }
             Platform::GooglePlay => {
                 //TODO: clean all of this up if async move evey makes its way to rust stable
-                if let Ok((Ok(response_future), Ok(sku_type))) =
-                    google::GooglePlayData::from(&receipt.payload).map(|data| {
-                        (
-                            data.get_uri().map(|uri| {
-                                fetch_google_receipt_data_with_uri(
-                                    self.service_account_key.as_ref(),
-                                    uri,
-                                )
-                            }),
-                            data.get_sku_details()
-                                .map(|sku_details| sku_details.sku_type),
-                        )
+                if let Ok((Ok(response_future), sku_type)) =
+                    google::GooglePlayData::from(&receipt.payload).and_then(|data| {
+                        data.get_sku_details().map(|sku_details| {
+                            let sku_type = sku_details.sku_type;
+                            (
+                                data.get_uri(&sku_type).map(|uri| {
+                                    fetch_google_receipt_data_with_uri(
+                                        self.service_account_key.as_ref(),
+                                        uri,
+                                        Some(data),
+                                    )
+                                }),
+                                sku_type,
+                            )
+                        })
                     })
                 {
                     if let Ok(response) = response_future.await {
-                        if sku_type == "subs" {
-                            validate_google_subscription(&response)
-                        } else {
-                            unimplemented!("validate consumable")
+                        match sku_type {
+                            google::SkuType::Subs => validate_google_subscription(&response),
+                            google::SkuType::Inapp => Ok(validate_google_package(&response)),
                         }
                     } else {
-                        Ok(PurchaseResponse { valid: false })
+                        Ok(PurchaseResponse {
+                            valid: false,
+                            product_id: None,
+                        })
                     }
                 } else {
-                    Ok(PurchaseResponse { valid: false })
+                    //TODO:
+                    Ok(PurchaseResponse {
+                        valid: false,
+                        product_id: None,
+                    })
                 }
             }
         }
@@ -294,12 +311,16 @@ impl ReceiptDataFetcher for UnityPurchaseValidator<'_> {
     async fn fetch_google_receipt_data(
         &self,
         receipt: &UnityPurchaseReceipt,
-    ) -> Result<GoogleResponse> {
+    ) -> Result<(GoogleResponse, SkuType)> {
+        let data = google::GooglePlayData::from(&receipt.payload)?;
+        let sku_type = data.get_sku_details()?.sku_type;
         fetch_google_receipt_data_with_uri(
             self.service_account_key.as_ref(),
-            google::GooglePlayData::from(&receipt.payload)?.get_uri()?,
+            data.get_uri(&sku_type)?,
+            Some(data),
         )
         .await
+        .map(|response| (response, sku_type))
     }
 }
 
@@ -307,7 +328,7 @@ impl ReceiptDataFetcher for UnityPurchaseValidator<'_> {
 mod tests {
     use super::*;
     use crate::{
-        apple::{AppleLatestReceipt, AppleResponse},
+        apple::{AppleInAppReceipt, AppleLatestReceipt, AppleReceipt, AppleResponse},
         google::{validate_google_subscription, GoogleResponse},
     };
     use chrono::{Duration, Utc};
@@ -366,8 +387,16 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_invalid_receipt() {
+        let now = Utc::now().timestamp_millis().to_string();
         let apple_response = AppleResponse {
             latest_receipt: Some(String::default()),
+            receipt: Some(AppleReceipt {
+                in_app: Some(vec![AppleInAppReceipt {
+                    expires_date_ms: Some(now),
+                    transaction_id: Some("txn".to_string()),
+                    ..AppleInAppReceipt::default()
+                }]),
+            }),
             latest_receipt_info: Some(vec![AppleLatestReceipt {
                 expires_date_ms: Utc::now().timestamp_millis().to_string(),
                 ..AppleLatestReceipt::default()
@@ -387,7 +416,10 @@ mod tests {
 
         assert!(
             !validator
-                .validate(&UnityPurchaseReceipt::default())
+                .validate(&UnityPurchaseReceipt {
+                    transaction_id: "txn".to_string(),
+                    ..UnityPurchaseReceipt::default()
+                })
                 .await
                 .unwrap()
                 .valid
@@ -466,7 +498,7 @@ mod tests {
     #[serial]
     async fn test_google_fail() {
         let google_response = GoogleResponse {
-            expiry_time: Utc::now().timestamp_millis().to_string(),
+            expiry_time: Some(Utc::now().timestamp_millis().to_string()),
             ..GoogleResponse::default()
         };
 
@@ -479,7 +511,7 @@ mod tests {
 
         assert!(
             !validate_google_subscription(
-                &google::fetch_google_receipt_data_with_uri(None, url.clone())
+                &google::fetch_google_receipt_data_with_uri(None, url.clone(), None,)
                     .await
                     .unwrap()
             )
@@ -508,9 +540,11 @@ mod tests {
     #[serial]
     async fn test_google() {
         let google_response = GoogleResponse {
-            expiry_time: (Utc::now() + Duration::days(1))
-                .timestamp_millis()
-                .to_string(),
+            expiry_time: Some(
+                (Utc::now() + Duration::days(1))
+                    .timestamp_millis()
+                    .to_string(),
+            ),
             ..GoogleResponse::default()
         };
         let _m = mock("GET", "/test")
@@ -522,7 +556,7 @@ mod tests {
 
         assert!(
             validate_google_subscription(
-                &google::fetch_google_receipt_data_with_uri(None, url.clone())
+                &google::fetch_google_receipt_data_with_uri(None, url.clone(), None,)
                     .await
                     .unwrap()
             )
