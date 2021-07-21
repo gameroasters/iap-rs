@@ -168,22 +168,19 @@ pub async fn fetch_apple_receipt_data_with_urls(
 
 /// Simply validates based on whether or not the subscription's expiration has passed.
 #[allow(clippy::must_use_candidate)]
-pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse {
+pub fn validate_apple_subscription(
+    response: &AppleResponse,
+    transaction_id: &str,
+) -> PurchaseResponse {
     let now = Utc::now().timestamp_millis();
 
-    //TODO: look up by transaction_id as a major optimization
     let (valid, product_id) = response
         .latest_receipt_info
         .as_ref()
         .and_then(|receipts| {
             receipts
                 .iter()
-                .max_by(|a, b| {
-                    let a = a.expires_date_ms.parse::<i64>().unwrap_or_default();
-                    let b = b.expires_date_ms.parse::<i64>().unwrap_or_default();
-
-                    a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Less)
-                })
+                .find(|receipt| receipt.transaction_id == transaction_id)
                 .and_then(|receipt| {
                     receipt
                         .expires_date_ms

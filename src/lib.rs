@@ -66,7 +66,7 @@
 //!     // was this purchase made in the production or sandbox environment
 //!     println!("Environment: {}", response.environment.clone().unwrap());
 //!
-//!     Ok(validate_apple_subscription(&response))
+//!     Ok(validate_apple_subscription(&response, &receipt.transaction_id))
 //! }
 //! ```
 
@@ -246,7 +246,10 @@ impl Validator for UnityPurchaseValidator<'_> {
                 dbg!(&response);
                 if response.status == 0 {
                     if response.is_subscription(&receipt.transaction_id) {
-                        Ok(validate_apple_subscription(&response))
+                        Ok(validate_apple_subscription(
+                            &response,
+                            &receipt.transaction_id,
+                        ))
                     } else {
                         Ok(validate_apple_package(&response, &receipt.transaction_id))
                     }
