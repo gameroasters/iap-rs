@@ -97,7 +97,7 @@ pub use apple::{
 };
 pub use google::{
     fetch_google_receipt_data, fetch_google_receipt_data_with_uri, validate_google_package,
-    validate_google_subscription, GoogleResponse,
+    validate_google_subscription, GoogleResponse, SkuType,
 };
 
 /// This is the platform on which the purchase that created the unity receipt was made.
@@ -167,7 +167,7 @@ pub trait ReceiptDataFetcher {
     async fn fetch_google_receipt_data(
         &self,
         receipt: &UnityPurchaseReceipt,
-    ) -> Result<GoogleResponse>;
+    ) -> Result<(GoogleResponse, SkuType)>;
 }
 
 /// Convenience trait which combines `ReceiptDataFetcher` and `Validator` traits.
@@ -259,25 +259,26 @@ impl Validator for UnityPurchaseValidator<'_> {
             }
             Platform::GooglePlay => {
                 //TODO: clean all of this up if async move evey makes its way to rust stable
-                if let Ok((Ok(response_future), Ok(sku_type))) =
-                    google::GooglePlayData::from(&receipt.payload).map(|data| {
-                        (
-                            data.get_uri().map(|uri| {
-                                fetch_google_receipt_data_with_uri(
-                                    self.service_account_key.as_ref(),
-                                    uri,
-                                )
-                            }),
-                            data.get_sku_details()
-                                .map(|sku_details| sku_details.sku_type),
-                        )
+                if let Ok((Ok(response_future), sku_type)) =
+                    google::GooglePlayData::from(&receipt.payload).and_then(|data| {
+                        data.get_sku_details().map(|sku_details| {
+                            let sku_type = sku_details.sku_type;
+                            (
+                                data.get_uri(&sku_type).map(|uri| {
+                                    fetch_google_receipt_data_with_uri(
+                                        self.service_account_key.as_ref(),
+                                        uri,
+                                    )
+                                }),
+                                sku_type,
+                            )
+                        })
                     })
                 {
                     if let Ok(response) = response_future.await {
-                        if sku_type == "subs" {
-                            validate_google_subscription(&response)
-                        } else {
-                            Ok(validate_google_package(&response))
+                        match sku_type {
+                            google::SkuType::Subs => validate_google_subscription(&response),
+                            google::SkuType::Inapp => Ok(validate_google_package(&response)),
                         }
                     } else {
                         Ok(PurchaseResponse {
@@ -309,12 +310,15 @@ impl ReceiptDataFetcher for UnityPurchaseValidator<'_> {
     async fn fetch_google_receipt_data(
         &self,
         receipt: &UnityPurchaseReceipt,
-    ) -> Result<GoogleResponse> {
+    ) -> Result<(GoogleResponse, SkuType)> {
+        let data = google::GooglePlayData::from(&receipt.payload)?;
+        let sku_type = data.get_sku_details()?.sku_type;
         fetch_google_receipt_data_with_uri(
             self.service_account_key.as_ref(),
-            google::GooglePlayData::from(&receipt.payload)?.get_uri()?,
+            data.get_uri(&sku_type)?,
         )
         .await
+        .map(|response| (response, sku_type))
     }
 }
 
