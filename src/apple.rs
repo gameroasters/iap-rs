@@ -10,8 +10,10 @@ use hyper::{body, Body, Client, Request};
 use hyper_tls::HttpsConnector;
 use serde::{Deserialize, Serialize};
 
-//https://developer.apple.com/documentation/appstorereceipts/status
+/// https://developer.apple.com/documentation/appstorereceipts/status
 const APPLE_STATUS_CODE_TEST: i32 = 21007;
+/// https://developer.apple.com/documentation/appstorereceipts/status
+const APPLE_STATUS_VALID: i32 = 0;
 const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
 const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
 
@@ -201,7 +203,7 @@ pub fn validate_apple_subscription(
 #[allow(clippy::must_use_candidate)]
 pub fn validate_apple_package(response: &AppleResponse, transaction_id: &str) -> PurchaseResponse {
     let product_id = response.get_product_id(transaction_id);
-    let valid = response.status == 0 && product_id.is_some();
+    let valid = response.status == APPLE_STATUS_VALID && product_id.is_some();
 
     PurchaseResponse {
         valid,
