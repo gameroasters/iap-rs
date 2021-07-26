@@ -200,7 +200,8 @@ pub fn validate_apple_subscription(
 /// Validates that a package status is valid
 #[allow(clippy::must_use_candidate)]
 pub fn validate_apple_package(response: &AppleResponse, transaction_id: &str) -> PurchaseResponse {
-    let valid = response.status == 0;
+    let product_id = response.get_product_id(transaction_id);
+    let valid = response.status == 0 && product_id.is_some();
 
     PurchaseResponse {
         valid,

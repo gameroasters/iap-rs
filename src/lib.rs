@@ -243,7 +243,6 @@ impl Validator for UnityPurchaseValidator<'_> {
                 )
                 .await?;
 
-                dbg!(&response);
                 if response.status == 0 {
                     if response.is_subscription(&receipt.transaction_id) {
                         Ok(validate_apple_subscription(
@@ -352,14 +351,25 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_sandbox_response() {
+        let expiry = (Utc::now() + Duration::days(1))
+            .timestamp_millis()
+            .to_string();
         let apple_response = AppleResponse {
             latest_receipt: Some(String::default()),
             latest_receipt_info: Some(vec![AppleLatestReceipt {
-                expires_date_ms: (Utc::now() + Duration::days(1))
-                    .timestamp_millis()
-                    .to_string(),
+                product_id: "prod".to_string(),
+                transaction_id: "txn".to_string(),
+                expires_date_ms: expiry.clone(),
                 ..AppleLatestReceipt::default()
             }]),
+            receipt: Some(AppleReceipt {
+                in_app: Some(vec![AppleInAppReceipt {
+                    product_id: Some("prod".to_string()),
+                    expires_date_ms: Some(expiry),
+                    transaction_id: Some("txn".to_string()),
+                    ..AppleInAppReceipt::default()
+                }]),
+            }),
             ..AppleResponse::default()
         };
 
@@ -378,13 +388,16 @@ mod tests {
         let sandbox = format!("{}/sb", url);
         let validator = new_for_test(url, &sandbox);
 
-        assert!(
-            validator
-                .validate(&UnityPurchaseReceipt::default())
-                .await
-                .unwrap()
-                .valid
-        );
+        let response = validator
+            .validate(&UnityPurchaseReceipt {
+                transaction_id: "txn".to_string(),
+                ..UnityPurchaseReceipt::default()
+            })
+            .await
+            .unwrap();
+
+        assert!(response.valid);
+        assert_eq!(response.product_id, Some("prod".to_string()));
     }
 
     #[tokio::test]
@@ -395,6 +408,7 @@ mod tests {
             latest_receipt: Some(String::default()),
             receipt: Some(AppleReceipt {
                 in_app: Some(vec![AppleInAppReceipt {
+                    product_id: Some("prod".to_string()),
                     expires_date_ms: Some(now),
                     transaction_id: Some("txn".to_string()),
                     ..AppleInAppReceipt::default()
@@ -431,34 +445,74 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_most_recent_receipt() {
-        let now = Utc::now().timestamp_millis();
-        let day = Duration::days(1).num_milliseconds();
-
-        let latest_receipt_info = vec![
-            AppleLatestReceipt {
-                expires_date_ms: now.to_string(),
-                ..AppleLatestReceipt::default()
-            },
-            AppleLatestReceipt {
-                expires_date_ms: (now + day).to_string(),
-                ..AppleLatestReceipt::default()
-            },
-            AppleLatestReceipt {
-                expires_date_ms: (now - day).to_string(),
-                ..AppleLatestReceipt::default()
-            },
-        ];
-
+    async fn test_apple_purchase() {
         let apple_response = AppleResponse {
-            latest_receipt: Some(String::default()),
-            latest_receipt_info: Some(latest_receipt_info),
+            receipt: Some(AppleReceipt {
+                in_app: Some(vec![
+                    AppleInAppReceipt {
+                        product_id: Some("prod".to_string()),
+                        transaction_id: Some("not_txn".to_string()),
+                        ..AppleInAppReceipt::default()
+                    },
+                    AppleInAppReceipt {
+                        product_id: Some("prod".to_string()),
+                        transaction_id: Some("txn".to_string()),
+                        ..AppleInAppReceipt::default()
+                    },
+                ]),
+            }),
             ..AppleResponse::default()
         };
 
-        let _m = mock("POST", "/verifyReceipt")
+        let _m1 = mock("POST", "/sb/verifyReceipt")
             .with_status(200)
             .with_body(&serde_json::to_string(&apple_response).unwrap())
+            .create();
+
+        let _m2 = mock("POST", "/verifyReceipt")
+            .with_status(200)
+            .with_body(r#"{"status": 21007}"#)
+            .create();
+
+        let url = &mockito::server_url();
+
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
+
+        let response = validator
+            .validate(&UnityPurchaseReceipt {
+                transaction_id: "txn".to_string(),
+                ..UnityPurchaseReceipt::default()
+            })
+            .await
+            .unwrap();
+
+        assert!(response.valid);
+        assert_eq!(response.product_id, Some("prod".to_string()));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_apple_purchase_failed_missing_txn() {
+        let apple_response = AppleResponse {
+            receipt: Some(AppleReceipt {
+                in_app: Some(vec![AppleInAppReceipt {
+                    product_id: Some("prod".to_string()),
+                    transaction_id: Some("not_txn".to_string()),
+                    ..AppleInAppReceipt::default()
+                }]),
+            }),
+            ..AppleResponse::default()
+        };
+
+        let _m1 = mock("POST", "/sb/verifyReceipt")
+            .with_status(200)
+            .with_body(&serde_json::to_string(&apple_response).unwrap())
+            .create();
+
+        let _m2 = mock("POST", "/verifyReceipt")
+            .with_status(200)
+            .with_body(r#"{"status": 21007}"#)
             .create();
 
         let url = &mockito::server_url();
@@ -467,8 +521,11 @@ mod tests {
         let validator = new_for_test(url, &sandbox);
 
         assert!(
-            validator
-                .validate(&UnityPurchaseReceipt::default())
+            !validator
+                .validate(&UnityPurchaseReceipt {
+                    transaction_id: "txn".to_string(),
+                    ..UnityPurchaseReceipt::default()
+                })
                 .await
                 .unwrap()
                 .valid
@@ -543,6 +600,7 @@ mod tests {
     #[serial]
     async fn test_google() {
         let google_response = GoogleResponse {
+            product_id: Some("prod".to_string()),
             expiry_time: Some(
                 (Utc::now() + Duration::days(1))
                     .timestamp_millis()
@@ -557,14 +615,40 @@ mod tests {
 
         let url = &mockito::server_url();
 
-        assert!(
-            validate_google_subscription(
-                &google::fetch_google_receipt_data_with_uri(None, url.clone(), None,)
-                    .await
-                    .unwrap()
-            )
-            .unwrap()
-            .valid
+        let response = validate_google_subscription(
+            &google::fetch_google_receipt_data_with_uri(None, url.clone(), None)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+
+        assert!(response.valid);
+        assert_eq!(response.product_id, Some("prod".to_string()));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_google_purchase() {
+        let google_response = GoogleResponse {
+            purchase_state: Some(0),
+            product_id: Some("prod".to_string()),
+            ..GoogleResponse::default()
+        };
+
+        let _m = mock("GET", "/test")
+            .with_status(200)
+            .with_body(&serde_json::to_string(&google_response).unwrap())
+            .create();
+
+        let url = &mockito::server_url();
+
+        let response = validate_google_package(
+            &google::fetch_google_receipt_data_with_uri(None, url.clone(), None)
+                .await
+                .unwrap(),
         );
+
+        assert!(response.valid);
+        assert_eq!(response.product_id, Some("prod".to_string()));
     }
 }
