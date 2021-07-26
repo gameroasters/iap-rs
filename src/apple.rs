@@ -10,8 +10,10 @@ use hyper::{body, Body, Client, Request};
 use hyper_tls::HttpsConnector;
 use serde::{Deserialize, Serialize};
 
-//https://developer.apple.com/documentation/appstorereceipts/status
+/// https://developer.apple.com/documentation/appstorereceipts/status
 const APPLE_STATUS_CODE_TEST: i32 = 21007;
+/// https://developer.apple.com/documentation/appstorereceipts/status
+const APPLE_STATUS_VALID: i32 = 0;
 const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
 const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
 
@@ -168,22 +170,19 @@ pub async fn fetch_apple_receipt_data_with_urls(
 
 /// Simply validates based on whether or not the subscription's expiration has passed.
 #[allow(clippy::must_use_candidate)]
-pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse {
+pub fn validate_apple_subscription(
+    response: &AppleResponse,
+    transaction_id: &str,
+) -> PurchaseResponse {
     let now = Utc::now().timestamp_millis();
 
-    //TODO: look up by transaction_id as a major optimization
     let (valid, product_id) = response
         .latest_receipt_info
         .as_ref()
         .and_then(|receipts| {
             receipts
                 .iter()
-                .max_by(|a, b| {
-                    let a = a.expires_date_ms.parse::<i64>().unwrap_or_default();
-                    let b = b.expires_date_ms.parse::<i64>().unwrap_or_default();
-
-                    a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Less)
-                })
+                .find(|receipt| receipt.transaction_id == transaction_id)
                 .and_then(|receipt| {
                     receipt
                         .expires_date_ms
@@ -203,7 +202,8 @@ pub fn validate_apple_subscription(response: &AppleResponse) -> PurchaseResponse
 /// Validates that a package status is valid
 #[allow(clippy::must_use_candidate)]
 pub fn validate_apple_package(response: &AppleResponse, transaction_id: &str) -> PurchaseResponse {
-    let valid = response.status == 0;
+    let product_id = response.get_product_id(transaction_id);
+    let valid = response.status == APPLE_STATUS_VALID && product_id.is_some();
 
     PurchaseResponse {
         valid,
