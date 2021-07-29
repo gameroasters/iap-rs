@@ -46,7 +46,7 @@ pub struct AppleRequest {
 /// See <https://developer.apple.com/documentation/appstorereceipts/responsebody/latest_receipt_info> for more details on each field.
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct AppleLatestReceipt {
-    pub quantity: String,
+    pub quantity: Option<String>,
     /// The time Apple customer support canceled a transaction, or the time an auto-renewable subscription plan was upgraded,
     /// in UNIX epoch time format, in milliseconds. This field is only present for refunded transactions. Use this time format for processing dates
     pub cancellation_date_ms: Option<String>,
