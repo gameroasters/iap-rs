@@ -10,9 +10,9 @@ use hyper::{body, Body, Client, Request};
 use hyper_tls::HttpsConnector;
 use serde::{Deserialize, Serialize};
 
-/// https://developer.apple.com/documentation/appstorereceipts/status
+/// <https://developer.apple.com/documentation/appstorereceipts/status>
 const APPLE_STATUS_CODE_TEST: i32 = 21007;
-/// https://developer.apple.com/documentation/appstorereceipts/status
+/// <https://developer.apple.com/documentation/appstorereceipts/status>
 const APPLE_STATUS_VALID: i32 = 0;
 const APPLE_PROD_VERIFY_RECEIPT: &str = "https://buy.itunes.apple.com";
 const APPLE_TEST_VERIFY_RECEIPT: &str = "https://sandbox.itunes.apple.com";
@@ -53,12 +53,12 @@ pub struct AppleLatestReceipt {
     pub cancellation_reason: Option<String>,
     /// The time a subscription expires or when it will renew, in UNIX epoch time format, in milliseconds.
     /// Use this time format for processing dates.
-    pub expires_date_ms: String,
-    pub expires_date: String,
-    pub original_purchase_date: String,
-    pub product_id: String,
-    pub purchase_date: String,
-    pub transaction_id: String,
+    pub expires_date_ms: Option<String>,
+    pub expires_date: Option<String>,
+    pub original_purchase_date: Option<String>,
+    pub product_id: Option<String>,
+    pub purchase_date: Option<String>,
+    pub transaction_id: Option<String>,
 }
 
 /// See <https://developer.apple.com/documentation/appstorereceipts/responsebody> for more details on each field
@@ -182,21 +182,19 @@ pub fn validate_apple_subscription(
         .and_then(|receipts| {
             receipts
                 .iter()
-                .find(|receipt| receipt.transaction_id == transaction_id)
+                .find(|receipt| receipt.transaction_id.as_deref() == Some(transaction_id))
                 .and_then(|receipt| {
-                    receipt
-                        .expires_date_ms
-                        .parse::<i64>()
-                        .map(|expiry_time| (expiry_time > now, receipt.product_id.clone()))
-                        .ok()
+                    receipt.expires_date_ms.as_ref().and_then(|expiry| {
+                        expiry
+                            .parse::<i64>()
+                            .map(|expiry_time| (expiry_time > now, receipt.product_id.clone()))
+                            .ok()
+                    })
                 })
         })
         .unwrap_or_default();
 
-    PurchaseResponse {
-        valid,
-        product_id: Some(product_id),
-    }
+    PurchaseResponse { valid, product_id }
 }
 
 /// Validates that a package status is valid
@@ -244,8 +242,16 @@ async fn fetch_apple_response(
         receipts
             .iter()
             .max_by(|a, b| {
-                let a = a.expires_date_ms.parse::<i64>().unwrap_or_default();
-                let b = b.expires_date_ms.parse::<i64>().unwrap_or_default();
+                let a = a
+                    .expires_date_ms
+                    .as_ref()
+                    .and_then(|expiry| expiry.parse::<i64>().ok())
+                    .unwrap_or_default();
+                let b = b
+                    .expires_date_ms
+                    .as_ref()
+                    .and_then(|expiry| expiry.parse::<i64>().ok())
+                    .unwrap_or_default();
                 a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Less)
             })
             .map(|receipt| receipt.expires_date.clone())
