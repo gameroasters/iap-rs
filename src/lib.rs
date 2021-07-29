@@ -357,9 +357,9 @@ mod tests {
         let apple_response = AppleResponse {
             latest_receipt: Some(String::default()),
             latest_receipt_info: Some(vec![AppleLatestReceipt {
-                product_id: "prod".to_string(),
-                transaction_id: "txn".to_string(),
-                expires_date_ms: expiry.clone(),
+                product_id: Some("prod".to_string()),
+                transaction_id: Some("txn".to_string()),
+                expires_date_ms: Some(expiry.clone()),
                 ..AppleLatestReceipt::default()
             }]),
             receipt: Some(AppleReceipt {
@@ -415,7 +415,7 @@ mod tests {
                 }]),
             }),
             latest_receipt_info: Some(vec![AppleLatestReceipt {
-                expires_date_ms: Utc::now().timestamp_millis().to_string(),
+                expires_date_ms: Some(Utc::now().timestamp_millis().to_string()),
                 ..AppleLatestReceipt::default()
             }]),
             ..AppleResponse::default()
