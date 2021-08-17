@@ -53,7 +53,7 @@
 //!     println!("Expiry data: {:?}", response.expiry_time);
 //!
 //!     // or just simply validate the response
-//!     validate_google_subscription(&response)
+//!     validate_google_subscription(&response, chrono::Utc::now())
 //! }
 //! ```
 //!
@@ -66,7 +66,7 @@
 //!     // was this purchase made in the production or sandbox environment
 //!     println!("Environment: {}", response.environment.clone().unwrap());
 //!
-//!     Ok(validate_apple_subscription(&response, &receipt.transaction_id))
+//!     Ok(validate_apple_subscription(&response, &receipt.transaction_id, chrono::Utc::now()))
 //! }
 //! ```
 
@@ -87,6 +87,7 @@ mod google;
 pub mod error;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use error::Result;
 use serde::{Deserialize, Serialize};
 use yup_oauth2::ServiceAccountKey;
@@ -152,7 +153,11 @@ pub struct PurchaseResponse {
 #[async_trait]
 pub trait Validator: Send + Sync {
     /// Called to perform the validation on whichever platform is described in the provided UnityPurchaseReceipt.
-    async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse>;
+    async fn validate(
+        &self,
+        now: DateTime<Utc>,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<PurchaseResponse>;
 }
 
 /// Trait which allows us to retrieve receipt data from an object's own secrets.
@@ -226,7 +231,11 @@ impl UnityPurchaseValidator<'_> {
 
 #[async_trait]
 impl Validator for UnityPurchaseValidator<'_> {
-    async fn validate(&self, receipt: &UnityPurchaseReceipt) -> Result<PurchaseResponse> {
+    async fn validate(
+        &self,
+        now: DateTime<Utc>,
+        receipt: &UnityPurchaseReceipt,
+    ) -> Result<PurchaseResponse> {
         tracing::debug!(
             "store: {:?}, transaction_id: {}, payload: {}",
             receipt.store,
@@ -248,6 +257,7 @@ impl Validator for UnityPurchaseValidator<'_> {
                         Ok(validate_apple_subscription(
                             &response,
                             &receipt.transaction_id,
+                            now,
                         ))
                     } else {
                         Ok(validate_apple_package(&response, &receipt.transaction_id))
@@ -280,7 +290,7 @@ impl Validator for UnityPurchaseValidator<'_> {
                 {
                     if let Ok(response) = response_future.await {
                         match sku_type {
-                            google::SkuType::Subs => validate_google_subscription(&response),
+                            google::SkuType::Subs => validate_google_subscription(&response, now),
                             google::SkuType::Inapp => Ok(validate_google_package(&response)),
                         }
                     } else {
@@ -330,7 +340,7 @@ impl ReceiptDataFetcher for UnityPurchaseValidator<'_> {
 mod tests {
     use super::*;
     use crate::{
-        apple::{AppleInAppReceipt, AppleLatestReceipt, AppleReceipt, AppleResponse},
+        apple::{AppleInAppReceipt, AppleReceipt, AppleResponse},
         google::{validate_google_subscription, GoogleResponse},
     };
     use chrono::{Duration, Utc};
@@ -355,13 +365,6 @@ mod tests {
             .timestamp_millis()
             .to_string();
         let apple_response = AppleResponse {
-            latest_receipt: Some(String::default()),
-            latest_receipt_info: Some(vec![AppleLatestReceipt {
-                product_id: Some("prod".to_string()),
-                transaction_id: Some("txn".to_string()),
-                expires_date_ms: Some(expiry.clone()),
-                ..AppleLatestReceipt::default()
-            }]),
             receipt: Some(AppleReceipt {
                 in_app: Some(vec![AppleInAppReceipt {
                     product_id: Some("prod".to_string()),
@@ -369,6 +372,7 @@ mod tests {
                     transaction_id: Some("txn".to_string()),
                     ..AppleInAppReceipt::default()
                 }]),
+                ..AppleReceipt::default()
             }),
             ..AppleResponse::default()
         };
@@ -389,10 +393,13 @@ mod tests {
         let validator = new_for_test(url, &sandbox);
 
         let response = validator
-            .validate(&UnityPurchaseReceipt {
-                transaction_id: "txn".to_string(),
-                ..UnityPurchaseReceipt::default()
-            })
+            .validate(
+                Utc::now(),
+                &UnityPurchaseReceipt {
+                    transaction_id: "txn".to_string(),
+                    ..UnityPurchaseReceipt::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -413,11 +420,8 @@ mod tests {
                     transaction_id: Some("txn".to_string()),
                     ..AppleInAppReceipt::default()
                 }]),
+                ..AppleReceipt::default()
             }),
-            latest_receipt_info: Some(vec![AppleLatestReceipt {
-                expires_date_ms: Some(Utc::now().timestamp_millis().to_string()),
-                ..AppleLatestReceipt::default()
-            }]),
             ..AppleResponse::default()
         };
 
@@ -433,10 +437,13 @@ mod tests {
 
         assert!(
             !validator
-                .validate(&UnityPurchaseReceipt {
-                    transaction_id: "txn".to_string(),
-                    ..UnityPurchaseReceipt::default()
-                })
+                .validate(
+                    Utc::now(),
+                    &UnityPurchaseReceipt {
+                        transaction_id: "txn".to_string(),
+                        ..UnityPurchaseReceipt::default()
+                    }
+                )
                 .await
                 .unwrap()
                 .valid
@@ -460,6 +467,7 @@ mod tests {
                         ..AppleInAppReceipt::default()
                     },
                 ]),
+                ..AppleReceipt::default()
             }),
             ..AppleResponse::default()
         };
@@ -480,10 +488,13 @@ mod tests {
         let validator = new_for_test(url, &sandbox);
 
         let response = validator
-            .validate(&UnityPurchaseReceipt {
-                transaction_id: "txn".to_string(),
-                ..UnityPurchaseReceipt::default()
-            })
+            .validate(
+                Utc::now(),
+                &UnityPurchaseReceipt {
+                    transaction_id: "txn".to_string(),
+                    ..UnityPurchaseReceipt::default()
+                },
+            )
             .await
             .unwrap();
 
@@ -501,6 +512,7 @@ mod tests {
                     transaction_id: Some("not_txn".to_string()),
                     ..AppleInAppReceipt::default()
                 }]),
+                ..AppleReceipt::default()
             }),
             ..AppleResponse::default()
         };
@@ -522,10 +534,13 @@ mod tests {
 
         assert!(
             !validator
-                .validate(&UnityPurchaseReceipt {
-                    transaction_id: "txn".to_string(),
-                    ..UnityPurchaseReceipt::default()
-                })
+                .validate(
+                    Utc::now(),
+                    &UnityPurchaseReceipt {
+                        transaction_id: "txn".to_string(),
+                        ..UnityPurchaseReceipt::default()
+                    }
+                )
                 .await
                 .unwrap()
                 .valid
@@ -547,7 +562,7 @@ mod tests {
 
         assert!(
             !validator
-                .validate(&UnityPurchaseReceipt::default())
+                .validate(Utc::now(), &UnityPurchaseReceipt::default())
                 .await
                 .unwrap()
                 .valid
@@ -573,7 +588,8 @@ mod tests {
             !validate_google_subscription(
                 &google::fetch_google_receipt_data_with_uri(None, url.clone(), None,)
                     .await
-                    .unwrap()
+                    .unwrap(),
+                Utc::now()
             )
             .unwrap()
             .valid
@@ -619,6 +635,7 @@ mod tests {
             &google::fetch_google_receipt_data_with_uri(None, url.clone(), None)
                 .await
                 .unwrap(),
+            Utc::now(),
         )
         .unwrap();
 

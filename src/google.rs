@@ -1,7 +1,7 @@
 #![allow(clippy::module_name_repetitions)]
 
 use super::{error, error::Result, PurchaseResponse, UnityPurchaseReceipt};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use hyper::{body, Body, Client, Request};
 use hyper_tls::HttpsConnector;
 use serde::{de::Error, Deserialize, Serialize};
@@ -199,13 +199,16 @@ pub async fn fetch_google_receipt_data_with_uri(
 /// Simply validates based on whether or not the subscription's expiration has passed.
 /// # Errors
 /// Will return an error if the `expiry_time` in the response cannot be parsed as an `i64`
-pub fn validate_google_subscription(response: &GoogleResponse) -> Result<PurchaseResponse> {
+pub fn validate_google_subscription(
+    response: &GoogleResponse,
+    now: DateTime<Utc>,
+) -> Result<PurchaseResponse> {
     let expiry_time = response
         .expiry_time
         .clone()
         .unwrap_or_default()
         .parse::<i64>()?;
-    let now = Utc::now().timestamp_millis();
+    let now = now.timestamp_millis();
     let valid = expiry_time > now;
 
     tracing::info!("google receipt verification, valid: {}, now: {}, order_id: {}, expiry_time: {:?}, price_currency_code: {:?}, price_amount_micros: {:?}",

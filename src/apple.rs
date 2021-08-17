@@ -5,7 +5,7 @@ use super::{
     PurchaseResponse, UnityPurchaseReceipt,
 };
 use async_recursion::async_recursion;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use hyper::{body, Body, Client, Request};
 use hyper_tls::HttpsConnector;
 use serde::{Deserialize, Serialize};
@@ -85,20 +85,25 @@ impl AppleResponse {
     #[must_use]
     /// Returns true if the receipt we are validating is from a subscription purchase
     pub fn is_subscription(&self, transaction_id: &str) -> bool {
-        self.receipt
-            .as_ref()
-            .and_then(|receipt| receipt.get_transaction(transaction_id))
-            .filter(|in_app| in_app.expires_date_ms.is_some())
+        self.get_receipt(transaction_id)
+            .filter(AppleInAppReceipt::is_subscription)
             .is_some()
     }
 
     #[must_use]
     /// Get the unique identifier of the product set in App Store Connect, ie: productIdentifier property of the `SKPayment` object
     pub fn get_product_id(&self, transaction_id: &str) -> Option<String> {
+        self.get_receipt(transaction_id)
+            .and_then(|receipt| receipt.product_id)
+    }
+
+    #[must_use]
+    /// Get the receipt from `receipt.in_app` by the `transaction_id`
+    pub fn get_receipt(&self, transaction_id: &str) -> Option<AppleInAppReceipt> {
         self.receipt
-            .clone()
-            .and_then(|receipt| receipt.get_transaction(transaction_id).cloned())
-            .and_then(|in_app| in_app.product_id)
+            .as_ref()
+            .and_then(|receipt| receipt.get_transaction(transaction_id))
+            .cloned()
     }
 }
 
@@ -129,6 +134,13 @@ pub struct AppleInAppReceipt {
     /// A unique identifier for a transaction such as a purchase, restore, or renewal.
     pub transaction_id: Option<String>,
     pub expires_date_ms: Option<String>,
+    pub expires_date: Option<String>,
+}
+
+impl AppleInAppReceipt {
+    pub const fn is_subscription(&self) -> bool {
+        self.expires_date_ms.is_some()
+    }
 }
 
 /// Retrieves the responseBody data from Apple
@@ -165,7 +177,14 @@ pub async fn fetch_apple_receipt_data_with_urls(
         receipt_data: receipt.payload.clone(),
         password,
     })?;
-    fetch_apple_response(&client, &request_body, apple_urls, true).await
+    fetch_apple_response(
+        &client,
+        &request_body,
+        apple_urls,
+        &receipt.transaction_id,
+        true,
+    )
+    .await
 }
 
 /// Simply validates based on whether or not the subscription's expiration has passed.
@@ -173,24 +192,22 @@ pub async fn fetch_apple_receipt_data_with_urls(
 pub fn validate_apple_subscription(
     response: &AppleResponse,
     transaction_id: &str,
+    now: DateTime<Utc>,
 ) -> PurchaseResponse {
-    let now = Utc::now().timestamp_millis();
-
     let (valid, product_id) = response
-        .latest_receipt_info
-        .as_ref()
-        .and_then(|receipts| {
-            receipts
-                .iter()
-                .find(|receipt| receipt.transaction_id.as_deref() == Some(transaction_id))
-                .and_then(|receipt| {
-                    receipt.expires_date_ms.as_ref().and_then(|expiry| {
-                        expiry
-                            .parse::<i64>()
-                            .map(|expiry_time| (expiry_time > now, receipt.product_id.clone()))
-                            .ok()
+        .get_receipt(transaction_id)
+        .and_then(|receipt| {
+            receipt.expires_date_ms.as_ref().and_then(|expiry| {
+                expiry
+                    .parse::<i64>()
+                    .map(|expiry_time| {
+                        (
+                            expiry_time > now.timestamp_millis(),
+                            receipt.product_id.clone(),
+                        )
                     })
-                })
+                    .ok()
+            })
         })
         .unwrap_or_default();
 
@@ -214,6 +231,7 @@ async fn fetch_apple_response(
     client: &Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
     request_body: &str,
     apple_urls: &AppleUrls,
+    transaction_id: &str,
     prod: bool,
 ) -> Result<AppleResponse> {
     let req = Request::builder()
@@ -238,32 +256,19 @@ async fn fetch_apple_response(
 
     let response = serde_json::from_slice::<AppleResponse>(&buf)?;
 
-    let latest_expires_date = response.latest_receipt_info.as_ref().and_then(|receipts| {
-        receipts
-            .iter()
-            .max_by(|a, b| {
-                let a = a
-                    .expires_date_ms
-                    .as_ref()
-                    .and_then(|expiry| expiry.parse::<i64>().ok())
-                    .unwrap_or_default();
-                let b = b
-                    .expires_date_ms
-                    .as_ref()
-                    .and_then(|expiry| expiry.parse::<i64>().ok())
-                    .unwrap_or_default();
-                a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Less)
-            })
-            .map(|receipt| receipt.expires_date.clone())
-    });
-    tracing::info!(
-        "apple response, status: {}, latest_expires: {:?}",
-        &response.status,
-        latest_expires_date,
+    let latest_expires_date = response
+        .get_receipt(transaction_id)
+        .and_then(|receipt| receipt.expires_date);
+
+    tracing::info!(target = "apple_response",
+        product_id = ?response.get_product_id(transaction_id),
+        is_subscription = %response.is_subscription(transaction_id),
+        status = %&response.status,
+        latest_expires_date = ?latest_expires_date,
     );
 
     if response.status == APPLE_STATUS_CODE_TEST {
-        fetch_apple_response(client, request_body, apple_urls, false).await
+        fetch_apple_response(client, request_body, apple_urls, transaction_id, false).await
     } else {
         Ok(response)
     }
