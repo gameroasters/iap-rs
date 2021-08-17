@@ -258,7 +258,7 @@ async fn fetch_apple_response(
 
     let latest_expires_date = response
         .get_receipt(transaction_id)
-        .map(|receipt| receipt.expires_date);
+        .and_then(|receipt| receipt.expires_date);
 
     tracing::info!(target = "apple_response",
         product_id = ?response.get_product_id(transaction_id),
