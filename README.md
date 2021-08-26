@@ -17,6 +17,7 @@ iap is a rust library for verifying receipt information for purchases made throu
 
 #### Supported Transaction Types
 - Subscriptions
+- Consumables
 
 #### Coming Features
 - Non-subscription purchase types
