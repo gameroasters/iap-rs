@@ -409,6 +409,135 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn test_validate_empty_transaction() {
+        let expiry = (Utc::now() + Duration::days(1))
+            .timestamp_millis()
+            .to_string();
+        let apple_response = AppleResponse {
+            receipt: Some(AppleReceipt {
+                in_app: Some(vec![
+                    AppleInAppReceipt {
+                        product_id: Some("prod".to_string()),
+                        expires_date_ms: Some(Utc::now().timestamp_millis().to_string()),
+                        transaction_id: Some("txn3".to_string()),
+                        ..AppleInAppReceipt::default()
+                    },
+                    AppleInAppReceipt {
+                        product_id: Some("prod".to_string()),
+                        expires_date_ms: Some(expiry),
+                        transaction_id: Some("txn1".to_string()),
+                        ..AppleInAppReceipt::default()
+                    },
+                    AppleInAppReceipt {
+                        product_id: Some("prod".to_string()),
+                        expires_date_ms: Some(
+                            (Utc::now() - Duration::days(1))
+                                .timestamp_millis()
+                                .to_string(),
+                        ),
+                        transaction_id: Some("txn2".to_string()),
+                        ..AppleInAppReceipt::default()
+                    },
+                ]),
+                ..AppleReceipt::default()
+            }),
+            ..AppleResponse::default()
+        };
+
+        let _m1 = mock("POST", "/sb/verifyReceipt")
+            .with_status(200)
+            .with_body(&serde_json::to_string(&apple_response).unwrap())
+            .create();
+
+        let _m2 = mock("POST", "/verifyReceipt")
+            .with_status(200)
+            .with_body(r#"{"status": 21007}"#)
+            .create();
+
+        let url = &mockito::server_url();
+
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
+
+        let response = validator
+            .validate(
+                Utc::now(),
+                &UnityPurchaseReceipt {
+                    transaction_id: "".to_string(),
+                    ..UnityPurchaseReceipt::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        assert!(response.valid);
+        assert_eq!(response.product_id, Some("prod".to_string()));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_subscription_expired_fallback() {
+        let expiry = (Utc::now() + Duration::days(1))
+            .timestamp_millis()
+            .to_string();
+        let apple_response = AppleResponse {
+            receipt: Some(AppleReceipt {
+                in_app: Some(vec![
+                    AppleInAppReceipt {
+                        product_id: Some("prod".to_string()),
+                        expires_date_ms: Some(expiry),
+                        transaction_id: Some("txn1".to_string()),
+                        ..AppleInAppReceipt::default()
+                    },
+                    AppleInAppReceipt {
+                        product_id: Some("prod".to_string()),
+                        expires_date_ms: Some(
+                            (Utc::now() - Duration::days(1))
+                                .timestamp_millis()
+                                .to_string(),
+                        ),
+                        transaction_id: Some("txn2".to_string()),
+                        ..AppleInAppReceipt::default()
+                    },
+                ]),
+                ..AppleReceipt::default()
+            }),
+            ..AppleResponse::default()
+        };
+
+        let _m1 = mock("POST", "/sb/verifyReceipt")
+            .with_status(200)
+            .with_body(&serde_json::to_string(&apple_response).unwrap())
+            .create();
+
+        let _m2 = mock("POST", "/verifyReceipt")
+            .with_status(200)
+            .with_body(r#"{"status": 21007}"#)
+            .create();
+
+        let url = &mockito::server_url();
+
+        let sandbox = format!("{}/sb", url);
+        let validator = new_for_test(url, &sandbox);
+
+        // look up the expired receipt, should still be valid since txn1 is not expired
+        let response = validator
+            .validate(
+                Utc::now(),
+                &UnityPurchaseReceipt {
+                    transaction_id: "txn2".to_string(),
+                    ..UnityPurchaseReceipt::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        assert!(response.valid);
+        assert_eq!(response.product_id, Some("prod".to_string()));
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn test_invalid_receipt() {
         let now = Utc::now().timestamp_millis().to_string();
         let apple_response = AppleResponse {
