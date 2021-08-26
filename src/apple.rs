@@ -85,9 +85,11 @@ impl AppleResponse {
     #[must_use]
     /// Returns true if the receipt we are validating is from a subscription purchase
     pub fn is_subscription(&self, transaction_id: &str) -> bool {
-        self.get_receipt(transaction_id)
-            .filter(AppleInAppReceipt::is_subscription)
-            .is_some()
+        transaction_id.is_empty()
+            || self
+                .get_receipt(transaction_id)
+                .filter(AppleInAppReceipt::is_subscription)
+                .is_some()
     }
 
     #[must_use]
@@ -105,6 +107,15 @@ impl AppleResponse {
             .and_then(|receipt| receipt.get_transaction(transaction_id))
             .cloned()
     }
+
+    #[must_use]
+    /// Get the receipt with the latest expiration date from `receipt.in_app`
+    pub fn get_latest_receipt(&self) -> Option<AppleInAppReceipt> {
+        self.receipt
+            .as_ref()
+            .and_then(AppleReceipt::get_latest_receipt)
+            .cloned()
+    }
 }
 
 /// See <https://developer.apple.com/documentation/appstorereceipts/responsebody/receipt> for more details on each field
@@ -120,6 +131,27 @@ impl AppleReceipt {
             in_app
                 .iter()
                 .find(|in_app| in_app.transaction_id.as_deref() == Some(transaction_id))
+        })
+    }
+
+    pub fn get_latest_receipt(&self) -> Option<&AppleInAppReceipt> {
+        self.in_app.as_ref().and_then(|in_app| {
+            in_app.iter().max_by(|a, b| {
+                let a = a
+                    .expires_date_ms
+                    .clone()
+                    .unwrap_or_default()
+                    .parse::<i64>()
+                    .unwrap_or_default();
+                let b = b
+                    .expires_date_ms
+                    .clone()
+                    .unwrap_or_default()
+                    .parse::<i64>()
+                    .unwrap_or_default();
+
+                a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Less)
+            })
         })
     }
 }
@@ -194,8 +226,31 @@ pub fn validate_apple_subscription(
     transaction_id: &str,
     now: DateTime<Utc>,
 ) -> PurchaseResponse {
-    let (valid, product_id) = response
-        .get_receipt(transaction_id)
+    let (valid, product_id) = if transaction_id.is_empty() {
+        validate_expiration(now, response.get_latest_receipt())
+    } else {
+        let mut result = validate_expiration(now, response.get_receipt(transaction_id));
+
+        let (valid, _) = result;
+        if !valid {
+            tracing::warn!(
+                "Received an expired transaction_id: {}, attempting to find latest receipt",
+                transaction_id
+            );
+            result = validate_expiration(now, response.get_latest_receipt());
+        }
+
+        result
+    };
+
+    PurchaseResponse { valid, product_id }
+}
+
+fn validate_expiration(
+    now: DateTime<Utc>,
+    in_app_receipt: Option<AppleInAppReceipt>,
+) -> (bool, Option<String>) {
+    in_app_receipt
         .and_then(|receipt| {
             receipt.expires_date_ms.as_ref().and_then(|expiry| {
                 expiry
@@ -209,9 +264,7 @@ pub fn validate_apple_subscription(
                     .ok()
             })
         })
-        .unwrap_or_default();
-
-    PurchaseResponse { valid, product_id }
+        .unwrap_or_default()
 }
 
 /// Validates that a package status is valid
