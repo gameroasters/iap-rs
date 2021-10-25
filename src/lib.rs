@@ -80,6 +80,8 @@
 #![deny(clippy::perf)]
 #![deny(clippy::nursery)]
 #![deny(clippy::match_like_matches_macro)]
+//TODO: remove once async_trait works with this again
+#![allow(clippy::no_effect_underscore_binding)]
 
 mod apple;
 mod google;
