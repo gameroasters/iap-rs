@@ -176,7 +176,7 @@ pub async fn fetch_google_receipt_data_with_uri(
 
     let response = client.request(req).await?;
     let buf = body::to_bytes(response).await?;
-    let string = String::from_utf8(buf.to_vec())?.replace("\n", "");
+    let string = String::from_utf8(buf.to_vec())?.replace('\n', "");
     tracing::debug!("Google response: {}", &string);
     let mut response: GoogleResponse = serde_json::from_slice(&buf).map_err(|err| {
         error::Error::SerdeError(serde_json::Error::custom(format!(

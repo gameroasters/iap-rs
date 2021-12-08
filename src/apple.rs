@@ -304,7 +304,7 @@ async fn fetch_apple_response(
 
     tracing::debug!(
         "apple response: {}",
-        String::from_utf8_lossy(&buf).replace("\n", "")
+        String::from_utf8_lossy(&buf).replace('\n', "")
     );
 
     let response = serde_json::from_slice::<AppleResponse>(&buf)?;
