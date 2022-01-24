@@ -204,7 +204,7 @@ impl ReceiptValidator for UnityPurchaseValidator<'_> {}
 impl UnityPurchaseValidator<'_> {
     /// Stores Apple's shared secret required by their requestBody. See: <https://developer.apple.com/documentation/appstorereceipts/requestbody>
     #[allow(clippy::missing_const_for_fn)]
-    #[allow(clippy::must_use_candidate)]
+    #[must_use]
     pub fn set_apple_secret(self, secret: String) -> Self {
         tracing::info!("Setting apple secret");
         let mut new = self;
