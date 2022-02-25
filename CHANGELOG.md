@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.1] - 2022-02-25
+
+## Changed
+- fix compat with new yup-oauth2 versions
+
 ## [0.3.0] - 2022-02-21
 
 ## Changed
